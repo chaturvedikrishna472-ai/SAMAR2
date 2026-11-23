@@ -1,12 +1,10 @@
 package com.samar.assistant
 
-import android.Manifest
-import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.widget.Button
-import android.widget.Switch
+import android.widget.EditText
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -14,36 +12,28 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var statusText: TextView
-    private lateinit var resultText: TextView
-    private lateinit var listenButton: Button
-    private lateinit var smsSwitch: Switch
-    private lateinit var cameraSwitch: Switch
-    private lateinit var accessibilitySwitch: Switch
+    private lateinit var tvStatus: TextView
+    private lateinit var etCommand: EditText
 
-    private lateinit var voiceSpeaker: VoiceSpeaker
-    private lateinit var commandRouter: SamarCommandRouter
-    private var isUpdatingSwitches = false
-
-    private val permissionLauncher = registerForActivityResult(
+    private val requestPermissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) {
-        syncPermissionSwitches()
+    ) { results ->
+        val grantedCount = results.values.count { it }
+        updateStatus("Permissions updated ($grantedCount/${results.size} granted).")
     }
 
-    private val speechLauncher = registerForActivityResult(
+    private val voiceInputLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
+        if (result.resultCode == RESULT_OK) {
             val spokenText = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
                 ?.firstOrNull()
-
-            if (!spokenText.isNullOrBlank()) {
-                val reply = commandRouter.handleInput(spokenText, CommandContext(source = "voice"))
-                resultText.text = "Tum: $spokenText\n\nSAMAR: $reply"
-            } else {
-                resultText.text = "Awaaz clear nahi aayi, dobara bol bhai."
+                .orEmpty()
+            if (spokenText.isNotBlank()) {
+                etCommand.setText(spokenText)
+                val reply = SamarCore.handleCommand(this, spokenText)
+                updateStatus(reply)
             }
         }
     }
@@ -52,92 +42,57 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        statusText = findViewById(R.id.statusText)
-        resultText = findViewById(R.id.resultText)
-        listenButton = findViewById(R.id.listenButton)
-        smsSwitch = findViewById(R.id.smsPermissionSwitch)
-        cameraSwitch = findViewById(R.id.cameraPermissionSwitch)
-        accessibilitySwitch = findViewById(R.id.accessibilitySwitch)
+        tvStatus = findViewById(R.id.tvStatus)
+        etCommand = findViewById(R.id.etCommand)
 
-        statusText.text = "SAMAR Initializing..."
-
-        voiceSpeaker = VoiceSpeaker(this) { ready ->
-            runOnUiThread {
-                if (ready) {
-                    statusText.text = "SAMAR Online"
-                    val greeting = SamarPersona.onReadyLine()
-                    resultText.text = greeting
-                    voiceSpeaker.speak(greeting)
-                } else {
-                    statusText.text = "SAMAR Ready (TTS Limited)"
-                }
-            }
+        findViewById<Button>(R.id.btnPermissions).setOnClickListener {
+            requestPermissionsLauncher.launch(SamarCore.requiredRuntimePermissions.toTypedArray())
         }
 
-        val smsMessenger = SmsMessenger(this)
-        commandRouter = SamarCommandRouter(voiceSpeaker, smsMessenger)
-
-        setupPermissionSwitches()
-        syncPermissionSwitches()
-
-        listenButton.setOnClickListener {
-            launchVoiceInput()
+        findViewById<Button>(R.id.btnAccessibility).setOnClickListener {
+            SamarCore.openAccessibilitySettings(this)
         }
+
+        findViewById<Button>(R.id.btnVoice).setOnClickListener {
+            startVoiceRecognition()
+        }
+
+        findViewById<Button>(R.id.btnSend).setOnClickListener {
+            val text = etCommand.text.toString()
+            val reply = SamarCore.handleCommand(this, text)
+            updateStatus(reply)
+        }
+
+        refreshStatus()
     }
 
     override fun onResume() {
         super.onResume()
-        syncPermissionSwitches()
+        refreshStatus()
     }
 
-    private fun setupPermissionSwitches() {
-        smsSwitch.setOnCheckedChangeListener { _, isChecked ->
-            if (isUpdatingSwitches) return@setOnCheckedChangeListener
-            if (isChecked && !SamarPermissions.hasSmsPermission(this)) {
-                permissionLauncher.launch(arrayOf(Manifest.permission.SEND_SMS))
-            }
-            syncPermissionSwitches()
-        }
-
-        cameraSwitch.setOnCheckedChangeListener { _, isChecked ->
-            if (isUpdatingSwitches) return@setOnCheckedChangeListener
-            if (isChecked && !SamarPermissions.hasCameraPermission(this)) {
-                permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA))
-            }
-            syncPermissionSwitches()
-        }
-
-        accessibilitySwitch.setOnCheckedChangeListener { _, isChecked ->
-            if (isUpdatingSwitches) return@setOnCheckedChangeListener
-            if (isChecked && !SamarPermissions.isAccessibilityEnabled(this)) {
-                startActivity(SamarPermissions.openAccessibilitySettingsIntent())
-            }
-            syncPermissionSwitches()
-        }
-    }
-
-    private fun syncPermissionSwitches() {
-        isUpdatingSwitches = true
-        smsSwitch.isChecked = SamarPermissions.hasSmsPermission(this)
-        cameraSwitch.isChecked = SamarPermissions.hasCameraPermission(this)
-        accessibilitySwitch.isChecked = SamarPermissions.isAccessibilityEnabled(this)
-        isUpdatingSwitches = false
-    }
-
-    private fun launchVoiceInput() {
+    private fun startVoiceRecognition() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                 RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
             )
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale("hi", "IN"))
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Bol bhai, SAMAR sun raha hai...")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Bolo SAMAR ko...")
         }
-        speechLauncher.launch(intent)
+        try {
+            voiceInputLauncher.launch(intent)
+        } catch (_: Exception) {
+            updateStatus("Voice recognizer available nahi hai, text command use karo.")
+        }
     }
 
-    override fun onDestroy() {
-        voiceSpeaker.shutdown()
-        super.onDestroy()
+    private fun refreshStatus() {
+        val accStatus = if (SamarCore.isAccessibilityEnabled()) "ON" else "OFF"
+        updateStatus("SAMAR ready | Accessibility: $accStatus")
+    }
+
+    private fun updateStatus(message: String) {
+        tvStatus.text = message
     }
 }
