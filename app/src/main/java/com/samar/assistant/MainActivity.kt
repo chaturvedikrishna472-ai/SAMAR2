@@ -3,6 +3,7 @@ package com.samar.assistant
 import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -10,10 +11,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import java.util.Locale
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private lateinit var tvStatus: TextView
     private lateinit var etCommand: EditText
+    private var tts: TextToSpeech? = null
+    private var isTtsReady = false
 
     private val requestPermissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -42,6 +45,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        tts = TextToSpeech(this, this)
+
         tvStatus = findViewById(R.id.tvStatus)
         etCommand = findViewById(R.id.etCommand)
 
@@ -63,12 +68,29 @@ class MainActivity : AppCompatActivity() {
             updateStatus(reply)
         }
 
-        refreshStatus()
+        refreshStatus(speak = false)
+    }
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            val langResult = tts?.setLanguage(Locale("hi", "IN"))
+            if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+                tts?.language = Locale.getDefault()
+            }
+            isTtsReady = true
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        refreshStatus()
+        refreshStatus(speak = false)
+    }
+
+    override fun onDestroy() {
+        tts?.stop()
+        tts?.shutdown()
+        tts = null
+        super.onDestroy()
     }
 
     private fun startVoiceRecognition() {
@@ -87,12 +109,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun refreshStatus() {
+    private fun refreshStatus(speak: Boolean) {
         val accStatus = if (SamarCore.isAccessibilityEnabled()) "ON" else "OFF"
-        updateStatus("SAMAR ready | Accessibility: $accStatus")
+        updateStatus("SAMAR ready | Accessibility: $accStatus", speak = speak)
     }
 
-    private fun updateStatus(message: String) {
+    private fun updateStatus(message: String, speak: Boolean = true) {
         tvStatus.text = message
+        if (speak && isTtsReady && message.isNotBlank()) {
+            tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "samar_utterance")
+        }
     }
 }
