@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 
 class SamarAccessibilityService : AccessibilityService() {
 
@@ -13,6 +14,7 @@ class SamarAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Screen events aane par live node tree rootInActiveWindow se read hota hai
     }
 
     override fun onInterrupt() {
@@ -31,6 +33,36 @@ class SamarAccessibilityService : AccessibilityService() {
             .addStroke(GestureDescription.StrokeDescription(path, 0L, 60L))
             .build()
         return dispatchGesture(gesture, null, null)
+    }
+
+    fun readScreenText(maxItems: Int = 25): String {
+        val root = rootInActiveWindow ?: return "Active screen ka content nahi mil paaya."
+        val collected = LinkedHashSet<String>()
+        collectNodeText(root, collected, maxItems)
+        return if (collected.isEmpty()) {
+            "Screen par koi readable text nahi mila."
+        } else {
+            collected.joinToString(". ")
+        }
+    }
+
+    private fun collectNodeText(
+        node: AccessibilityNodeInfo?,
+        out: LinkedHashSet<String>,
+        limit: Int
+    ) {
+        if (node == null || out.size >= limit) return
+        val text = node.text?.toString()?.trim()
+        val desc = node.contentDescription?.toString()?.trim()
+        if (!text.isNullOrEmpty() && text != "SAMAR initializing...") {
+            out.add(text)
+        } else if (!desc.isNullOrEmpty()) {
+            out.add(desc)
+        }
+        for (i in 0 until node.childCount) {
+            if (out.size >= limit) break
+            collectNodeText(node.getChild(i), out, limit)
+        }
     }
 
     companion object {
