@@ -16,6 +16,37 @@ data class CommandContext(
     val voiceReplyEnabled: Boolean = true
 )
 
+class SamarAccessibilityService : AccessibilityService() {
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        instance = this
+    }
+
+    override fun onAccessibilityEvent(event: android.view.accessibility.AccessibilityEvent?) {
+        // Pure phone ki screen events ke liye base hook
+    }
+
+    override fun onInterrupt() {
+        // Interrupt hook
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (instance == this) {
+            instance = null
+        }
+    }
+
+    companion object {
+        @Volatile
+        var instance: SamarAccessibilityService? = null
+            private set
+
+        fun isConnected(): Boolean = instance != null
+    }
+}
+
 object SamarPermissions {
     fun hasSmsPermission(context: Context): Boolean {
         return ContextCompat.checkSelfPermission(
@@ -33,7 +64,7 @@ object SamarPermissions {
 
     fun isAccessibilityEnabled(
         context: Context,
-        serviceClass: Class<out AccessibilityService>
+        serviceClass: Class<out AccessibilityService> = SamarAccessibilityService::class.java
     ): Boolean {
         val enabledServices = Settings.Secure.getString(
             context.contentResolver,
@@ -63,9 +94,7 @@ object SamarPersona {
 
         return when {
             lower.contains("stop") || lower.contains("ruk ja") ->
-                "Samajh gaya boss, scrolling/action stop mode ready."
-            lower.contains("keep scrolling") || lower.contains("scroll kr") || lower.contains("scroll kar") ->
-                "Scroll command sun liya—next step mein screen gesture service ke saath live scroll chalega."
+                "Samajh gaya boss, action stop mode ready."
             lower.contains("status") || lower.contains("kya haal") ->
                 "Engine smooth chal raha hai, boss. Voice command mode active."
             else ->
