@@ -13,15 +13,13 @@ class SamarAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Aage ke steps mein yahan active app / screen events handle honge
     }
 
     override fun onInterrupt() {
-        // Service interrupt hone par safe fallback
     }
 
     override fun onDestroy() {
-        if (instance == this) {
+        if (instance === this) {
             instance = null
         }
         super.onDestroy()
@@ -38,7 +36,6 @@ class SamarAccessibilityService : AccessibilityService() {
     companion object {
         @Volatile
         var instance: SamarAccessibilityService? = null
-            private set
 
         fun isRunning(): Boolean = instance != null
     }
