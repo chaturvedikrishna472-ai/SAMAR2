@@ -35,6 +35,22 @@ class SamarAccessibilityService : AccessibilityService() {
         return dispatchGesture(gesture, null, null)
     }
 
+    fun performScroll(down: Boolean = true): Boolean {
+        val metrics = resources.displayMetrics
+        val centerX = metrics.widthPixels * 0.5f
+        val startY = if (down) metrics.heightPixels * 0.72f else metrics.heightPixels * 0.28f
+        val endY = if (down) metrics.heightPixels * 0.28f else metrics.heightPixels * 0.72f
+
+        val path = Path().apply {
+            moveTo(centerX, startY)
+            lineTo(centerX, endY)
+        }
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0L, 250L))
+            .build()
+        return dispatchGesture(gesture, null, null)
+    }
+
     fun readScreenText(maxItems: Int = 25): String {
         val root = rootInActiveWindow ?: return "Active screen ka content nahi mil paaya."
         val collected = LinkedHashSet<String>()
