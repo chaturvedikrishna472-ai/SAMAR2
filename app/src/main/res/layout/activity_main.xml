@@ -2,32 +2,52 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:gravity="center"
     android:orientation="vertical"
-    android:padding="24dp">
+    android:padding="20dp">
 
     <TextView
         android:id="@+id/statusText"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="SAMAR Initializing..."
+        android:text="SAMAR Offline"
         android:textSize="20sp"
         android:textStyle="bold" />
 
     <TextView
         android:id="@+id/resultText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:layout_marginTop="16dp"
-        android:gravity="center"
-        android:text="Bolne ke liye neeche button dabao"
+        android:text="Command output yahin dikhega..."
         android:textSize="16sp" />
+
+    <Switch
+        android:id="@+id/smsPermissionSwitch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="SMS Permission" />
+
+    <Switch
+        android:id="@+id/cameraPermissionSwitch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Camera Permission" />
+
+    <Switch
+        android:id="@+id/accessibilitySwitch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="All Apps Accessibility" />
 
     <Button
         android:id="@+id/listenButton"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="16dp"
         android:text="Bol bhai SAMAR" />
 
 </LinearLayout>
