@@ -12,6 +12,6 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
+
 rootProject.name = "SAMAR"
 include(":app")
-```[cite: 1]
