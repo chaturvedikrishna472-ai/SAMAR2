@@ -44,6 +44,12 @@ object SamarCore {
         }
     }
 
+    fun readScreen(maxItems: Int = 25): String {
+        val service = SamarAccessibilityService.instance
+            ?: return "Accessibility service off hai bhai, pehle on karo tabhi screen padh paunga."
+        return service.readScreenText(maxItems)
+    }
+
     fun sendSms(context: Context, phoneNumber: String, message: String): String {
         if (!hasPermission(context, Manifest.permission.SEND_SMS)) {
             return "SEND_SMS permission nahi mili."
@@ -83,9 +89,12 @@ object SamarCore {
         }
 
         return when {
+            command.contains("read screen") || command.contains("screen padh") -> {
+                readScreen()
+            }
             command.contains("accessibility") -> {
                 openAccessibilitySettings(context)
-                "Accessibility settings khol di hain."
+                "Accessibility settings khol di hain, ab SAMAR ko power do."
             }
             command.startsWith("open ") -> {
                 val target = command.removePrefix("open ").trim()
@@ -105,7 +114,7 @@ object SamarCore {
                 }
             }
             else -> {
-                "SAMAR ready hai — command mila: '$rawCommand'"
+                "SAMAR online aur sarcastic mode ready — command mila: '$rawCommand'"
             }
         }
     }
