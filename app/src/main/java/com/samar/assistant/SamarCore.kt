@@ -44,6 +44,18 @@ object SamarCore {
         }
     }
 
+    fun scrollScreen(down: Boolean = true): String {
+        val service = SamarAccessibilityService.instance
+            ?: return "Accessibility service off hai bhai, pehle on karo tabhi scroll ho paayega."
+        val ok = service.performScroll(down)
+        val direction = if (down) "neeche" else "upar"
+        return if (ok) {
+            "Screen $direction scroll kar di hai."
+        } else {
+            "Screen scroll nahi ho paayi."
+        }
+    }
+
     fun readScreen(maxItems: Int = 25): String {
         val service = SamarAccessibilityService.instance
             ?: return "Accessibility service off hai bhai, pehle on karo tabhi screen padh paunga."
@@ -89,6 +101,12 @@ object SamarCore {
         }
 
         return when {
+            command.contains("scroll down") || command.contains("neeche scroll") -> {
+                scrollScreen(down = true)
+            }
+            command.contains("scroll up") || command.contains("upar scroll") -> {
+                scrollScreen(down = false)
+            }
             command.contains("read screen") || command.contains("screen padh") -> {
                 readScreen()
             }
