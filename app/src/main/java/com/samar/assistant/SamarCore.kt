@@ -15,6 +15,8 @@ object SamarCore {
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    const val CLEAR_LOG_SIGNAL = "__SAMAR_CLEAR_LOG__"
+
     private val commonAppPackages: Map<String, String> = mapOf(
         "whatsapp" to "com.whatsapp",
         "youtube" to "com.google.android.youtube",
@@ -23,7 +25,9 @@ object SamarCore {
         "phone" to "com.android.dialer",
         "dialer" to "com.android.dialer",
         "messages" to "com.google.android.apps.messaging",
-        "camera" to "com.android.camera"
+        "camera" to "com.android.camera",
+        "instagram" to "com.instagram.android",
+        "maps" to "com.google.android.apps.maps"
     )
 
     val requiredRuntimePermissions: List<String> = listOf(
@@ -49,7 +53,7 @@ object SamarCore {
     }
 
     fun getCommandsHelp(): String {
-        return "Commands: open <app/settings>, click <text>, find <text>, tap <x> <y>, type <text>, search <text>, sms <number> : <msg>, read screen, scroll down/up, back, home, recents, status. 'and' ya 'then' se chain bhi kar sakte ho."
+        return "Commands: open <app/settings>, click <text>, find <text>, tap <x> <y>, type <text>, search <text>, sms <number> : <msg>, read screen, scroll down/up, back, home, recents, clear log, status. 'and' ya 'then' se chain bhi kar sakte ho."
     }
 
     fun openAccessibilitySettings(context: Context) {
@@ -254,6 +258,9 @@ object SamarCore {
         }
 
         return when {
+            command == "clear log" || command == "clear chat" || command == "reset log" || command == "clear" -> {
+                CLEAR_LOG_SIGNAL
+            }
             command == "hello" || command == "hi" || command == "hey" || command.startsWith("namaste") -> {
                 "Haan boss, SAMAR hazir hai—suit polished aur sarcasm loaded. Bol kya karna hai?"
             }
@@ -352,7 +359,7 @@ object SamarCore {
                         openAppByPackage(context, target)
                     }
                     else -> {
-                        "'$target' ka exact package nahi pehchana—ya toh package naam do ya common app (whatsapp, youtube, chrome, camera) bolo."
+                        "'$target' ka exact package nahi pehchana—ya toh package naam do ya common app (whatsapp, youtube, chrome, camera, instagram, maps) bolo."
                     }
                 }
             }
