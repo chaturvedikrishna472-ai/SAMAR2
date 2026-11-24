@@ -55,7 +55,7 @@ object SamarCore {
         val acc = if (isAccessibilityEnabled()) "ON" else "OFF"
         val mic = if (hasPermission(context, Manifest.permission.RECORD_AUDIO)) "OK" else "MISSING"
         val sms = if (hasPermission(context, Manifest.permission.SEND_SMS)) "OK" else "MISSING"
-        return "SAMAR status: Accessibility $acc, Mic $mic, SMS $sms. Main taiyar hoon, ab tu apna plan mat bigaadna."
+        return "SAMAR status: Accessibility $acc, Mic $mic, SMS$sms. Main taiyar hoon, ab tu apna plan mat bigaadna."
     }
 
     fun getCommandsHelp(): String {
@@ -86,7 +86,7 @@ object SamarCore {
             ?: return "Accessibility service off hai boss. Pehle settings mein on karo, warna main hawa mein tap karunga."
         val ok = service.performTap(x, y)
         return if (ok) {
-            "($x, $y) par tap kar diya hai, bilkul surgical precision ke saath."
+            "($x,$y) par tap kar diya hai, bilkul surgical precision ke saath."
         } else {
             "Tap dispatch fail ho gaya—screen shayad nakhre dikha rahi hai."
         }
@@ -430,34 +430,4 @@ object SamarCore {
                     }
                     "battery" -> {
                         context.startActivity(
-                            Intent(Intent.ACTION_POWER_USAGE_SUMMARY).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                        "Battery usage settings khol di hain."
-                    }
-                    "display" -> {
-                        context.startActivity(
-                            Intent(Settings.ACTION_DISPLAY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                        "Display settings khol di hain."
-                    }
-                    "location" -> {
-                        context.startActivity(
-                            Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                        "Location settings khol di hain."
-                    }
-                    "date" -> {
-                        context.startActivity(
-                            Intent(Settings.ACTION_DATE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                        "Date aur time settings khol di hain."
-                    }
-                    else -> when {
-                        commonAppPackages.containsKey(target) -> {
-                            openAppByPackage(context, commonAppPackages.getValue(target))
-                        }
-                        target.contains(".") -> {
-                            openAppByPackage(context, target)
-                        }
-                        else -> {
-                            "'$target' ka exact package na
+                            Intent(Intent.ACTION_POWER_USAGE_SUMMARY).addFlags
