@@ -14,9 +14,7 @@ import androidx.core.content.ContextCompat
 object SamarCore {
 
     private val mainHandler = Handler(Looper.getMainLooper())
-
     const val CLEAR_LOG_SIGNAL = "__SAMAR_CLEAR_LOG__"
-
     private var lastRepeatableCommand: String? = null
 
     private val commonAppPackages: Map<String, String> = mapOf(
@@ -42,148 +40,107 @@ object SamarCore {
         Manifest.permission.CAMERA
     )
 
-    fun hasPermission(context: Context, permission: String): Boolean {
-        return ContextCompat.checkSelfPermission(context, permission) ==
-            PackageManager.PERMISSION_GRANTED
-    }
+    fun hasPermission(context: Context, permission: String): Boolean =
+        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 
-    fun isAccessibilityEnabled(): Boolean {
-        return SamarAccessibilityService.isRunning()
-    }
+    fun isAccessibilityEnabled(): Boolean = SamarAccessibilityService.isRunning()
 
     fun getStatusSummary(context: Context): String {
         val acc = if (isAccessibilityEnabled()) "ON" else "OFF"
         val mic = if (hasPermission(context, Manifest.permission.RECORD_AUDIO)) "OK" else "MISSING"
         val sms = if (hasPermission(context, Manifest.permission.SEND_SMS)) "OK" else "MISSING"
-        return "SAMAR status: Accessibility $acc, Mic $mic, SMS$sms. Main taiyar hoon, ab tu apna plan mat bigaadna."
+        return "SAMAR status: Accessibility $acc, Mic $mic, SMS $sms."
     }
 
-    fun getCommandsHelp(): String {
-        return "Commands: open <app/settings/wifi/bluetooth/sound/battery/display/location/date>, call <number>, click <text>, find <text>, tap <x> <y>, type <text>, search <text>, sms <number> : <msg>, read screen, scroll down/up, back, home, recents, repeat, clear log, status."
-    }
+    fun getCommandsHelp(): String =
+        "Commands: open <app/settings/wifi/bluetooth/sound/battery/display/location/date>, call <number>, click <text>, find <text>, tap <x> <y>, type <text>, search <text>, sms <number> : <msg>, read screen, scroll down/up, back, home, recents, repeat, clear log, status."
 
     fun openAccessibilitySettings(context: Context) {
-        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(intent)
+        context.startActivity(
+            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
     }
 
     fun openDialer(context: Context, phoneNumber: String): String {
-        val cleanNumber = phoneNumber.trim()
-        if (cleanNumber.isEmpty()) {
-            return "Kisko call/dial karna hai uska number toh batao."
-        }
-        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanNumber")).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(intent)
-        return "$cleanNumber ke liye dialer khol diya hai."
+        val clean = phoneNumber.trim()
+        if (clean.isEmpty()) return "Kisko dial karna hai uska number batao."
+        context.startActivity(
+            Intent(Intent.ACTION_DIAL, Uri.parse("tel:$clean")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        return "$clean ke liye dialer khol diya hai."
     }
 
     fun tapScreen(x: Float, y: Float): String {
-        val service = SamarAccessibilityService.instance
-            ?: return "Accessibility service off hai boss. Pehle settings mein on karo."
-        val ok = service.performTap(x, y)
-        return if (ok) "($x,$y) par tap kar diya hai." else "Tap dispatch fail ho gaya."
+        val service = SamarAccessibilityService.instance ?: return "Accessibility service off hai boss."
+        return if (service.performTap(x, y)) "($x, $y) par tap kar diya." else "Tap fail ho gaya."
     }
 
     fun clickText(targetText: String): String {
-        val service = SamarAccessibilityService.instance
-            ?: return "Accessibility service off hai bhai, pehle on karo."
-        val cleanTarget = targetText.trim()
-        if (cleanTarget.isEmpty()) return "Kya click karna hai uska naam toh batao."
-        val ok = service.clickNodeByText(cleanTarget)
-        return if (ok) "'$cleanTarget' par click kar diya hai." else "Screen par '$cleanTarget' nahi mila."
+        val service = SamarAccessibilityService.instance ?: return "Accessibility service off hai bhai."
+        val clean = targetText.trim()
+        if (clean.isEmpty()) return "Kya click karna hai uska naam batao."
+        return if (service.clickNodeByText(clean)) "'$clean' par click kar diya." else "'$clean' nahi mila."
     }
 
     fun findOrClickText(targetText: String): String {
-        val service = SamarAccessibilityService.instance
-            ?: return "Accessibility service off hai bhai, pehle on karo."
-        val cleanTarget = targetText.trim()
-        if (cleanTarget.isEmpty()) return "Screen par kya dhoondhna hai wo toh batao."
-        if (service.clickNodeByText(cleanTarget)) {
-            return "'$cleanTarget' mil gaya aur click kar diya hai."
-        }
-        val screenContent = service.readScreenText(40)
-        if (screenContent.contains(cleanTarget, ignoreCase = true)) {
-            return "'$cleanTarget' screen par dikh raha hai, par direct clickable node nahi mila."
+        val service = SamarAccessibilityService.instance ?: return "Accessibility service off hai bhai."
+        val clean = targetText.trim()
+        if (clean.isEmpty()) return "Kya dhoondhna hai wo batao."
+        if (service.clickNodeByText(clean)) return "'$clean' mil gaya aur click kar diya."
+        if (service.readScreenText(40).contains(clean, ignoreCase = true)) {
+            return "'$clean' screen par dikh raha hai, par direct clickable nahi mila."
         }
         if (service.performScroll(true)) {
-            mainHandler.postDelayed({ service.clickNodeByText(cleanTarget) }, 600L)
-            return "'$cleanTarget' turant nahi mila, neeche scroll karke dhoondh raha hoon."
+            mainHandler.postDelayed({ service.clickNodeByText(clean) }, 600L)
+            return "'$clean' neeche scroll karke dhoondh raha hoon."
         }
-        return "'$cleanTarget' abhi is screen par nahi mila."
+        return "'$clean' is screen par nahi mila."
     }
 
     fun typeIntoField(text: String): String {
-        val service = SamarAccessibilityService.instance
-            ?: return "Accessibility service off hai bhai, pehle on karo."
-        val cleanText = text.trim()
-        if (cleanText.isEmpty()) return "Kya type karna hai wo toh batao."
-        return if (service.typeText(cleanText)) {
-            "'$cleanText' likh diya hai input box mein."
-        } else {
-            "Screen par koi editable text box nahi mila."
-        }
+        val service = SamarAccessibilityService.instance ?: return "Accessibility service off hai bhai."
+        val clean = text.trim()
+        if (clean.isEmpty()) return "Kya type karna hai wo batao."
+        return if (service.typeText(clean)) "'$clean' type kar diya." else "Editable box nahi mila."
     }
 
     fun searchOnScreen(query: String): String {
-        val service = SamarAccessibilityService.instance
-            ?: return "Accessibility service off hai bhai, pehle on karo."
-        val cleanQuery = query.trim()
-        if (cleanQuery.isEmpty()) return "Kya search karna hai wo toh bolo."
+        val service = SamarAccessibilityService.instance ?: return "Accessibility service off hai bhai."
+        val clean = query.trim()
+        if (clean.isEmpty()) return "Kya search karna hai wo bolo."
         service.clickNodeByText("Search")
-        return if (service.typeText(cleanQuery)) {
-            "'$cleanQuery' search field mein daal diya hai."
-        } else {
-            "Search box nahi mil paaya."
-        }
+        return if (service.typeText(clean)) "'$clean' search mein daal diya." else "Search box nahi mila."
     }
 
-    fun goBack(): String {
-        val service = SamarAccessibilityService.instance
-            ?: return "Accessibility service off hai bhai, pehle on karo."
-        return if (service.performSystemBack()) "Ek kadam peeche." else "Back action nahi ho paaya."
-    }
+    fun goBack(): String = SamarAccessibilityService.instance?.let {
+        if (it.performSystemBack()) "Ek kadam peeche." else "Back fail ho gaya."
+    } ?: "Accessibility service off hai bhai."
 
-    fun goHome(): String {
-        val service = SamarAccessibilityService.instance
-            ?: return "Accessibility service off hai bhai, pehle on karo."
-        return if (service.performSystemHome()) "Home screen par wapas." else "Home action nahi ho paaya."
-    }
+    fun goHome(): String = SamarAccessibilityService.instance?.let {
+        if (it.performSystemHome()) "Home screen par wapas." else "Home fail ho gaya."
+    } ?: "Accessibility service off hai bhai."
 
-    fun openRecents(): String {
-        val service = SamarAccessibilityService.instance
-            ?: return "Accessibility service off hai bhai, pehle on karo."
-        return if (service.performSystemRecents()) "Recent apps khol di hain." else "Recent apps nahi khul paayin."
-    }
+    fun openRecents(): String = SamarAccessibilityService.instance?.let {
+        if (it.performSystemRecents()) "Recent apps khol di hain." else "Recents fail ho gaya."
+    } ?: "Accessibility service off hai bhai."
 
     fun scrollScreen(down: Boolean = true): String {
-        val service = SamarAccessibilityService.instance
-            ?: return "Accessibility service off hai bhai, pehle on karo."
-        val ok = service.performScroll(down)
-        val direction = if (down) "neeche" else "upar"
-        return if (ok) "Screen $direction scroll kar di hai." else "Screen scroll nahi ho paayi."
+        val service = SamarAccessibilityService.instance ?: return "Accessibility service off hai bhai."
+        val dir = if (down) "neeche" else "upar"
+        return if (service.performScroll(down)) "Screen $dir scroll kar di." else "Scroll fail ho gaya."
     }
 
-    fun readScreen(maxItems: Int = 25): String {
-        val service = SamarAccessibilityService.instance
-            ?: return "Accessibility service off hai bhai, pehle on karo."
-        return service.readScreenText(maxItems)
-    }
+    fun readScreen(maxItems: Int = 25): String =
+        SamarAccessibilityService.instance?.readScreenText(maxItems) ?: "Accessibility service off hai bhai."
 
     fun sendSms(context: Context, phoneNumber: String, message: String): String {
-        if (!hasPermission(context, Manifest.permission.SEND_SMS)) {
-            return "SEND_SMS permission nahi mili."
-        }
+        if (!hasPermission(context, Manifest.permission.SEND_SMS)) return "SEND_SMS permission nahi mili."
         return try {
             @Suppress("DEPRECATION")
-            val smsManager = SmsManager.getDefault()
-            smsManager.sendTextMessage(phoneNumber, null, message, null, null)
+            SmsManager.getDefault().sendTextMessage(phoneNumber, null, message, null, null)
             "SMS bhej diya gaya $phoneNumber par."
         } catch (e: Exception) {
-            "SMS bhejne mein error: ${e.message ?: "unknown error"}"
+            "SMS error: ${e.message ?: "unknown error"}"
         }
     }
 
@@ -192,16 +149,13 @@ object SamarCore {
         return if (launchIntent != null) {
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(launchIntent)
-            "$packageName khol diya hai, sir."
+            "$packageName khol diya hai."
         } else {
-            val marketIntent = Intent(
-                Intent.ACTION_VIEW,
-                Uri.parse("market://details?id=$packageName")
-            ).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(marketIntent)
-            "$packageName install nahi mila, Play Store khol diya hai."
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            "$packageName nahi mila, Play Store khol diya."
         }
     }
 
@@ -222,72 +176,46 @@ object SamarCore {
             val results = mutableListOf<String>()
             steps.forEachIndexed { index, step ->
                 if (index == 0) {
-                    results.add(executeCommand(appContext, step, true))
+                    results.add(runStep(appContext, step, true))
                 } else {
-                    val delayMs = index * 1100L
                     mainHandler.postDelayed({
-                        val stepReply = executeCommand(appContext, step, false)
-                        onAsyncStepResult?.invoke(stepReply)
-                    }, delayMs)
+                        onAsyncStepResult?.invoke(runStep(appContext, step, false))
+                    }, index * 1100L)
                     results.add("Queued: '$step'")
                 }
             }
             return results.joinToString(" | ")
         }
-
-        return executeCommand(appContext, trimmed, true)
+        return runStep(appContext, trimmed, true)
     }
 
-    private fun executeCommand(
-        context: Context,
-        rawCommand: String,
-        recordForRepeat: Boolean
-    ): String {
+    private fun runStep(context: Context, rawCommand: String, saveRepeat: Boolean): String {
         val command = rawCommand.trim().lowercase()
         if (command.isEmpty()) return "Kuch sunai nahi diya bhai."
 
         if (command == "repeat" || command == "phir se" || command == "dobara") {
-            val previous = lastRepeatableCommand
-                ?: return "Abhi tak koi pichla action command record nahi hua hai."
-            return executeCommand(context, previous, false)
+            val prev = lastRepeatableCommand ?: return "Koi pichla action command record nahi hai."
+            return runStep(context, prev, false)
         }
 
-        val isRepeatableAction = command.startsWith("open ") ||
-            command.startsWith("call ") ||
-            command.startsWith("dial ") ||
-            command.startsWith("tap ") ||
-            command.startsWith("click ") ||
-            command.startsWith("find ") ||
-            command.startsWith("type ") ||
-            command.startsWith("write ") ||
-            command.startsWith("search ") ||
-            command.contains("scroll down") ||
-            command.contains("neeche scroll") ||
-            command.contains("scroll up") ||
-            command.contains("upar scroll") ||
-            command.contains("go back") ||
-            command == "back" ||
-            command.contains("peeche ja")
-
-        if (recordForRepeat && isRepeatableAction) {
-            lastRepeatableCommand = rawCommand.trim()
-        }
+        val repeatable = command.startsWith("open ") || command.startsWith("call ") ||
+            command.startsWith("dial ") || command.startsWith("tap ") || command.startsWith("click ") ||
+            command.startsWith("find ") || command.startsWith("type ") || command.startsWith("write ") ||
+            command.startsWith("search ") || command.contains("scroll down") ||
+            command.contains("scroll up") || command.contains("back")
+        if (saveRepeat && repeatable) lastRepeatableCommand = rawCommand.trim()
 
         return when {
-            command == "clear log" || command == "clear chat" || command == "reset log" || command == "clear" -> {
+            command == "clear log" || command == "clear chat" || command == "reset log" || command == "clear" ->
                 CLEAR_LOG_SIGNAL
-            }
-            command == "hello" || command == "hi" || command == "hey" || command.startsWith("namaste") -> {
+            command == "hello" || command == "hi" || command == "hey" || command.startsWith("namaste") ->
                 "Haan boss, SAMAR hazir hai. Bol kya karna hai?"
-            }
-            command.contains("who are you") || command.contains("kaun hai tu") || command.contains("intro") -> {
-                "Main SAMAR hoon—JARVIS ki classy precision aur Deadpool ka thoda sa attitude."
-            }
+            command.contains("who are you") || command.contains("kaun hai tu") || command.contains("intro") ->
+                "Main SAMAR hoon—JARVIS ki precision aur Deadpool ka attitude."
             command == "help" || command == "commands" -> getCommandsHelp()
             command == "status" || command.contains("system check") -> getStatusSummary(context)
-            command.startsWith("call ") || command.startsWith("dial ") -> {
+            command.startsWith("call ") || command.startsWith("dial ") ->
                 openDialer(context, rawCommand.trim().substringAfter(" ", "").trim())
-            }
             command.startsWith("tap ") -> {
                 val coords = command.removePrefix("tap ").trim().split(Regex("[,\\s]+"))
                 val x = coords.getOrNull(0)?.toFloatOrNull()
@@ -295,9 +223,60 @@ object SamarCore {
                 if (x != null && y != null) tapScreen(x, y) else "Format: tap <x> <y>"
             }
             command.startsWith("sms ") || command.startsWith("send sms ") -> {
-                val payload = rawCommand.trim()
-                    .replaceFirst(Regex("(?i)^send\\s+sms\\s+|^sms\\s+"), "")
-                    .trim()
-                val separatorIndex = payload.indexOf(':')
-                if (separatorIndex > 0) {
-                    val number = payload.substring(0,
+                val payload = rawCommand.trim().replaceFirst(Regex("(?i)^send\\s+sms\\s+|^sms\\s+"), "").trim()
+                val sep = payload.indexOf(':')
+                if (sep > 0) {
+                    val num = payload.substring(0, sep).trim()
+                    val msg = payload.substring(sep + 1).trim()
+                    if (num.isNotEmpty() && msg.isNotEmpty()) sendSms(context, num, msg)
+                    else "Format: sms <number> : <message>"
+                } else {
+                    val parts = payload.split(Regex("\\s+"), limit = 2)
+                    if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                        sendSms(context, parts[0].trim(), parts[1].trim())
+                    } else "Format: sms <number> : <message>"
+                }
+            }
+            command.startsWith("search ") -> searchOnScreen(rawCommand.trim().substringAfter(" ", "").trim())
+            command.startsWith("type ") || command.startsWith("write ") ->
+                typeIntoField(rawCommand.trim().substringAfter(" ", "").trim())
+            command.startsWith("find ") -> findOrClickText(rawCommand.trim().substringAfter(" ", "").trim())
+            command.startsWith("click ") -> clickText(rawCommand.trim().substringAfter(" ", "").trim())
+            command.contains("go back") || command == "back" || command.contains("peeche ja") -> goBack()
+            command.contains("go home") || command == "home" || command.contains("home screen") -> goHome()
+            command.contains("recent") || command.contains("recents") -> openRecents()
+            command.contains("scroll down") || command.contains("neeche scroll") -> scrollScreen(down = true)
+            command.contains("scroll up") || command.contains("upar scroll") -> scrollScreen(down = false)
+            command.contains("read screen") || command.contains("screen padh") -> readScreen()
+            command.contains("accessibility") -> {
+                openAccessibilitySettings(context)
+                "Accessibility settings khol di hain."
+            }
+            command.startsWith("open ") -> {
+                val target = command.removePrefix("open ").trim()
+                val action = when (target) {
+                    "settings" -> Settings.ACTION_SETTINGS
+                    "wifi" -> Settings.ACTION_WIFI_SETTINGS
+                    "bluetooth" -> Settings.ACTION_BLUETOOTH_SETTINGS
+                    "sound" -> Settings.ACTION_SOUND_SETTINGS
+                    "battery" -> Settings.ACTION_BATTERY_SAVER_SETTINGS
+                    "display" -> Settings.ACTION_DISPLAY_SETTINGS
+                    "location" -> Settings.ACTION_LOCATION_SOURCE_SETTINGS
+                    "date" -> Settings.ACTION_DATE_SETTINGS
+                    else -> null
+                }
+                when {
+                    action != null -> {
+                        context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        "$target settings khol di hain."
+                    }
+                    commonAppPackages.containsKey(target) ->
+                        openAppByPackage(context, commonAppPackages.getValue(target))
+                    target.contains(".") -> openAppByPackage(context, target)
+                    else -> "'$target' ka package nahi mila."
+                }
+            }
+            else -> "SAMAR sun raha hai—'$rawCommand' bola tune."
+        }
+    }
+}
