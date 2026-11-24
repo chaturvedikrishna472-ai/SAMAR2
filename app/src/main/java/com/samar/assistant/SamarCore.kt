@@ -49,7 +49,7 @@ object SamarCore {
     }
 
     fun getCommandsHelp(): String {
-        return "Commands: open <app/settings>, click <text>, type <text>, search <text>, read screen, scroll down/up, back, home, recents, status. 'and' ya 'then' se chain bhi kar sakte ho."
+        return "Commands: open <app/settings>, click <text>, find <text>, type <text>, search <text>, sms <number> : <msg>, read screen, scroll down/up, back, home, recents, status. 'and' ya 'then' se chain bhi kar sakte ho."
     }
 
     fun openAccessibilitySettings(context: Context) {
@@ -82,6 +82,24 @@ object SamarCore {
             "'$cleanTarget' par click kar diya hai. Aage kya tabahi machani hai?"
         } else {
             "Screen par '$cleanTarget' nahi mila ya clickable nahi hai."
+        }
+    }
+
+    fun findOrClickText(targetText: String): String {
+        val service = SamarAccessibilityService.instance
+            ?: return "Accessibility service off hai bhai, pehle on karo."
+        val cleanTarget = targetText.trim()
+        if (cleanTarget.isEmpty()) {
+            return "Screen par kya dhoondhna hai wo toh batao."
+        }
+        if (service.clickNodeByText(cleanTarget)) {
+            return "'$cleanTarget' mil gaya aur click kar diya hai."
+        }
+        val screenContent = service.readScreenText(40)
+        return if (screenContent.contains(cleanTarget, ignoreCase = true)) {
+            "'$cleanTarget' screen par dikh raha hai, par direct clickable node nahi mila."
+        } else {
+            "'$cleanTarget' abhi is screen par nahi mila—'scroll down' try karo."
         }
     }
 
@@ -248,6 +266,28 @@ object SamarCore {
             command == "status" || command.contains("system check") -> {
                 getStatusSummary(context)
             }
+            command.startsWith("sms ") || command.startsWith("send sms ") -> {
+                val payload = rawCommand.trim()
+                    .replaceFirst(Regex("(?i)^send\\s+sms\\s+|^sms\\s+"), "")
+                    .trim()
+                val separatorIndex = payload.indexOf(':')
+                if (separatorIndex > 0) {
+                    val number = payload.substring(0, separatorIndex).trim()
+                    val msg = payload.substring(separatorIndex + 1).trim()
+                    if (number.isNotEmpty() && msg.isNotEmpty()) {
+                        sendSms(context, number, msg)
+                    } else {
+                        "Format aisa rakho: sms <number> : <message>"
+                    }
+                } else {
+                    val parts = payload.split(Regex("\\s+"), limit = 2)
+                    if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                        sendSms(context, parts[0].trim(), parts[1].trim())
+                    } else {
+                        "Format aisa rakho: sms <number> : <message>"
+                    }
+                }
+            }
             command.startsWith("search ") -> {
                 val query = rawCommand.trim().substringAfter(" ", "").trim()
                 searchOnScreen(query)
@@ -255,6 +295,10 @@ object SamarCore {
             command.startsWith("type ") || command.startsWith("write ") -> {
                 val textToType = rawCommand.trim().substringAfter(" ", "").trim()
                 typeIntoField(textToType)
+            }
+            command.startsWith("find ") -> {
+                val target = rawCommand.trim().substringAfter(" ", "").trim()
+                findOrClickText(target)
             }
             command.startsWith("click ") -> {
                 val target = rawCommand.trim().substringAfter(" ", "").trim()
