@@ -194,7 +194,12 @@ object SamarCore {
         }
     }
 
-    fun handleCommand(context: Context, rawCommand: String): String {
+    fun handleCommand(
+        context: Context,
+        rawCommand: String,
+        onAsyncStepResult: ((String) -> Unit)? = null
+    ): String {
+        val appContext = context.applicationContext
         val trimmed = rawCommand.trim()
         if (trimmed.isEmpty()) {
             return "Kuch sunai nahi diya bhai, mic ke saamne thoda aur zor se bolo."
@@ -208,11 +213,12 @@ object SamarCore {
             val results = mutableListOf<String>()
             steps.forEachIndexed { index, step ->
                 if (index == 0) {
-                    results.add(handleSingleCommand(context, step))
+                    results.add(handleSingleCommand(appContext, step))
                 } else {
-                    val delayMs = index * 900L
+                    val delayMs = index * 1100L
                     mainHandler.postDelayed({
-                        handleSingleCommand(context, step)
+                        val stepReply = handleSingleCommand(appContext, step)
+                        onAsyncStepResult?.invoke(stepReply)
                     }, delayMs)
                     results.add("Queued: '$step'")
                 }
@@ -220,7 +226,7 @@ object SamarCore {
             return results.joinToString(" | ")
         }
 
-        return handleSingleCommand(context, trimmed)
+        return handleSingleCommand(appContext, trimmed)
     }
 
     private fun handleSingleCommand(context: Context, rawCommand: String): String {
