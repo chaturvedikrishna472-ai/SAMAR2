@@ -5,11 +5,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.telephony.SmsManager
 import androidx.core.content.ContextCompat
 
 object SamarCore {
+
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private val commonAppPackages: Map<String, String> = mapOf(
         "whatsapp" to "com.whatsapp",
@@ -41,11 +45,11 @@ object SamarCore {
         val acc = if (isAccessibilityEnabled()) "ON" else "OFF"
         val mic = if (hasPermission(context, Manifest.permission.RECORD_AUDIO)) "OK" else "MISSING"
         val sms = if (hasPermission(context, Manifest.permission.SEND_SMS)) "OK" else "MISSING"
-        return "SAMAR status: Accessibility $acc, Mic $mic, SMS $sms. Sab control mein hai, boss."
+        return "SAMAR status: Accessibility $acc, Mic $mic, SMS $sms. Main taiyar hoon, ab tu apna plan mat bigaadna."
     }
 
     fun getCommandsHelp(): String {
-        return "Commands: open <app/settings>, click <text>, type <text>, search <text>, read screen, scroll down/up, back, home, recents, status."
+        return "Commands: open <app/settings>, click <text>, type <text>, search <text>, read screen, scroll down/up, back, home, recents, status. 'and' ya 'then' se chain bhi kar sakte ho."
     }
 
     fun openAccessibilitySettings(context: Context) {
@@ -191,12 +195,47 @@ object SamarCore {
     }
 
     fun handleCommand(context: Context, rawCommand: String): String {
+        val trimmed = rawCommand.trim()
+        if (trimmed.isEmpty()) {
+            return "Kuch sunai nahi diya bhai, mic ke saamne thoda aur zor se bolo."
+        }
+
+        val steps = trimmed.split(Regex("(?i)\\s+(?:and|then)\\s+"))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+
+        if (steps.size > 1) {
+            val results = mutableListOf<String>()
+            steps.forEachIndexed { index, step ->
+                if (index == 0) {
+                    results.add(handleSingleCommand(context, step))
+                } else {
+                    val delayMs = index * 900L
+                    mainHandler.postDelayed({
+                        handleSingleCommand(context, step)
+                    }, delayMs)
+                    results.add("Queued: '$step'")
+                }
+            }
+            return results.joinToString(" | ")
+        }
+
+        return handleSingleCommand(context, trimmed)
+    }
+
+    private fun handleSingleCommand(context: Context, rawCommand: String): String {
         val command = rawCommand.trim().lowercase()
         if (command.isEmpty()) {
             return "Kuch sunai nahi diya bhai, mic ke saamne thoda aur zor se bolo."
         }
 
         return when {
+            command == "hello" || command == "hi" || command == "hey" || command.startsWith("namaste") -> {
+                "Haan boss, SAMAR hazir hai—suit polished aur sarcasm loaded. Bol kya karna hai?"
+            }
+            command.contains("who are you") || command.contains("kaun hai tu") || command.contains("intro") -> {
+                "Main SAMAR hoon—JARVIS ki classy precision aur Deadpool ka thoda sa be-adab attitude, ek hi Android body mein."
+            }
             command == "help" || command == "commands" || command.contains("kya kar sakte") -> {
                 getCommandsHelp()
             }
