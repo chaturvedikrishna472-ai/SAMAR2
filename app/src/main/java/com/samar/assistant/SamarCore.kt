@@ -27,7 +27,11 @@ object SamarCore {
         "messages" to "com.google.android.apps.messaging",
         "camera" to "com.android.camera",
         "instagram" to "com.instagram.android",
-        "maps" to "com.google.android.apps.maps"
+        "maps" to "com.google.android.apps.maps",
+        "clock" to "com.android.deskclock",
+        "contacts" to "com.android.contacts",
+        "gallery" to "com.miui.gallery",
+        "photos" to "com.google.android.apps.photos"
     )
 
     val requiredRuntimePermissions: List<String> = listOf(
@@ -49,7 +53,7 @@ object SamarCore {
         val acc = if (isAccessibilityEnabled()) "ON" else "OFF"
         val mic = if (hasPermission(context, Manifest.permission.RECORD_AUDIO)) "OK" else "MISSING"
         val sms = if (hasPermission(context, Manifest.permission.SEND_SMS)) "OK" else "MISSING"
-        return "SAMAR status: Accessibility $acc, Mic $mic, SMS $sms. Main taiyar hoon, ab tu apna plan mat bigaadna."
+        return "SAMAR status: Accessibility $acc, Mic $mic, SMS$sms. Main taiyar hoon, ab tu apna plan mat bigaadna."
     }
 
     fun getCommandsHelp(): String {
@@ -68,7 +72,7 @@ object SamarCore {
             ?: return "Accessibility service off hai boss. Pehle settings mein on karo, warna main hawa mein tap karunga."
         val ok = service.performTap(x, y)
         return if (ok) {
-            "($x, $y) par tap kar diya hai, bilkul surgical precision ke saath."
+            "($x,$y) par tap kar diya hai, bilkul surgical precision ke saath."
         } else {
             "Tap dispatch fail ho gaya—screen shayad nakhre dikha rahi hai."
         }
@@ -129,11 +133,16 @@ object SamarCore {
             return "Kya search karna hai wo toh bolo."
         }
         service.clickNodeByText("Search")
-        return if (service.typeText(cleanQuery)) {
-            "'$cleanQuery' search field mein daal diya hai."
-        } else {
-            "Search box nahi mil paaya—pehle field tap karke 'type $cleanQuery' try karo."
+        val typed = service.typeText(cleanQuery)
+        if (!typed) {
+            return "Search box nahi mil paaya—pehle field tap karke 'type $cleanQuery' try karo."
         }
+        mainHandler.postDelayed({
+            if (!service.clickNodeByText("Search")) {
+                service.clickNodeByText("Go")
+            }
+        }, 450L)
+        return "'$cleanQuery' search field mein daal diya hai."
     }
 
     fun goBack(): String {
@@ -291,81 +300,4 @@ object SamarCore {
                 if (separatorIndex > 0) {
                     val number = payload.substring(0, separatorIndex).trim()
                     val msg = payload.substring(separatorIndex + 1).trim()
-                    if (number.isNotEmpty() && msg.isNotEmpty()) {
-                        sendSms(context, number, msg)
-                    } else {
-                        "Format aisa rakho: sms <number> : <message>"
-                    }
-                } else {
-                    val parts = payload.split(Regex("\\s+"), limit = 2)
-                    if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
-                        sendSms(context, parts[0].trim(), parts[1].trim())
-                    } else {
-                        "Format aisa rakho: sms <number> : <message>"
-                    }
-                }
-            }
-            command.startsWith("search ") -> {
-                val query = rawCommand.trim().substringAfter(" ", "").trim()
-                searchOnScreen(query)
-            }
-            command.startsWith("type ") || command.startsWith("write ") -> {
-                val textToType = rawCommand.trim().substringAfter(" ", "").trim()
-                typeIntoField(textToType)
-            }
-            command.startsWith("find ") -> {
-                val target = rawCommand.trim().substringAfter(" ", "").trim()
-                findOrClickText(target)
-            }
-            command.startsWith("click ") -> {
-                val target = rawCommand.trim().substringAfter(" ", "").trim()
-                clickText(target)
-            }
-            command.contains("go back") || command == "back" || command.contains("peeche ja") -> {
-                goBack()
-            }
-            command.contains("go home") || command == "home" || command.contains("home screen") -> {
-                goHome()
-            }
-            command.contains("recent") || command.contains("recents") -> {
-                openRecents()
-            }
-            command.contains("scroll down") || command.contains("neeche scroll") -> {
-                scrollScreen(down = true)
-            }
-            command.contains("scroll up") || command.contains("upar scroll") -> {
-                scrollScreen(down = false)
-            }
-            command.contains("read screen") || command.contains("screen padh") -> {
-                readScreen()
-            }
-            command.contains("accessibility") -> {
-                openAccessibilitySettings(context)
-                "Accessibility settings khol di hain, ab SAMAR ko full power do."
-            }
-            command.startsWith("open ") -> {
-                val target = command.removePrefix("open ").trim()
-                when {
-                    target == "settings" -> {
-                        context.startActivity(
-                            Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                        "Phone settings khol di hain—kuch bigaadna mat."
-                    }
-                    commonAppPackages.containsKey(target) -> {
-                        openAppByPackage(context, commonAppPackages.getValue(target))
-                    }
-                    target.contains(".") -> {
-                        openAppByPackage(context, target)
-                    }
-                    else -> {
-                        "'$target' ka exact package nahi pehchana—ya toh package naam do ya common app (whatsapp, youtube, chrome, camera, instagram, maps) bolo."
-                    }
-                }
-            }
-            else -> {
-                "SAMAR sun raha hai—'$rawCommand' bola tune. 'help' bol kar commands dekh lo ya seedha action command do."
-            }
-        }
-    }
-}
+                    if (number.isNotEmpty() &&
