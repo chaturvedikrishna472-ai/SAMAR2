@@ -70,6 +70,20 @@ object SamarCore {
         }
     }
 
+    fun typeIntoField(text: String): String {
+        val service = SamarAccessibilityService.instance
+            ?: return "Accessibility service off hai bhai, pehle on karo tabhi type kar paunga."
+        val cleanText = text.trim()
+        if (cleanText.isEmpty()) {
+            return "Kya type karna hai wo toh batao."
+        }
+        return if (service.typeText(cleanText)) {
+            "'$cleanText' likh diya hai input box mein."
+        } else {
+            "Screen par koi editable text box nahi mila."
+        }
+    }
+
     fun goBack(): String {
         val service = SamarAccessibilityService.instance
             ?: return "Accessibility service off hai bhai, pehle on karo."
@@ -157,6 +171,14 @@ object SamarCore {
         }
 
         return when {
+            command.startsWith("type ") -> {
+                val textToType = rawCommand.trim().substringAfter(" ", "").trim()
+                typeIntoField(textToType)
+            }
+            command.startsWith("write ") -> {
+                val textToType = rawCommand.trim().substringAfter(" ", "").trim()
+                typeIntoField(textToType)
+            }
             command.startsWith("click ") -> {
                 val target = rawCommand.trim().substringAfter(" ", "").trim()
                 clickText(target)
