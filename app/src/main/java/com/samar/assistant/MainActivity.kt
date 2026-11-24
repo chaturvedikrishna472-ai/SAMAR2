@@ -53,7 +53,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         tvStatus = findViewByName("tvStatus")
         tvLog = findViewByName("tvLog")
-        etCommand = findViewById("etCommand")
+        etCommand = findViewByName("etCommand")
         btnSend = findViewByName("btnSend")
         btnVoice = findViewByName("btnVoice")
         btnAccessibility = findViewByName("btnAccessibility")
