@@ -57,7 +57,7 @@ object SamarCore {
     }
 
     fun getCommandsHelp(): String {
-        return "Commands: open <app/settings>, click <text>, find <text>, tap <x> <y>, type <text>, search <text>, sms <number> : <msg>, read screen, scroll down/up, back, home, recents, clear log, status. 'and' ya 'then' se chain bhi kar sakte ho."
+        return "Commands: open <app/settings/wifi/bluetooth/sound>, call <number>, click <text>, find <text>, tap <x> <y>, type <text>, search <text>, sms <number> : <msg>, read screen, scroll down/up, back, home, recents, clear log, status. 'and' ya 'then' se chain bhi kar sakte ho."
     }
 
     fun openAccessibilitySettings(context: Context) {
@@ -65,6 +65,18 @@ object SamarCore {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
+    }
+
+    fun openDialer(context: Context, phoneNumber: String): String {
+        val cleanNumber = phoneNumber.trim()
+        if (cleanNumber.isEmpty()) {
+            return "Kisko call/dial karna hai uska number toh batao."
+        }
+        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanNumber")).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+        return "$cleanNumber ke liye dialer khol diya hai."
     }
 
     fun tapScreen(x: Float, y: Float): String {
@@ -277,6 +289,10 @@ object SamarCore {
             command == "status" || command.contains("system check") -> {
                 getStatusSummary(context)
             }
+            command.startsWith("call ") || command.startsWith("dial ") -> {
+                val number = rawCommand.trim().substringAfter(" ", "").trim()
+                openDialer(context, number)
+            }
             command.startsWith("tap ") -> {
                 val coords = command.removePrefix("tap ").trim().split(Regex("[,\\s]+"))
                 val x = coords.getOrNull(0)?.toFloatOrNull()
@@ -349,21 +365,41 @@ object SamarCore {
             }
             command.startsWith("open ") -> {
                 val target = command.removePrefix("open ").trim()
-                when {
-                    target == "settings" -> {
+                when (target) {
+                    "settings" -> {
                         context.startActivity(
                             Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         )
                         "Phone settings khol di hain—kuch bigaadna mat."
                     }
-                    commonAppPackages.containsKey(target) -> {
-                        openAppByPackage(context, commonAppPackages.getValue(target))
+                    "wifi" -> {
+                        context.startActivity(
+                            Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                        "Wi-Fi settings khol di hain."
                     }
-                    target.contains(".") -> {
-                        openAppByPackage(context, target)
+                    "bluetooth" -> {
+                        context.startActivity(
+                            Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                        "Bluetooth settings khol di hain."
                     }
-                    else -> {
-                        "'$target' ka exact package nahi pehchana—ya toh package naam do ya common app (whatsapp, youtube, chrome, camera, instagram, maps, clock, contacts, gallery, photos) bolo."
+                    "sound" -> {
+                        context.startActivity(
+                            Intent(Settings.ACTION_SOUND_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                        "Sound settings khol di hain."
+                    }
+                    else -> when {
+                        commonAppPackages.containsKey(target) -> {
+                            openAppByPackage(context, commonAppPackages.getValue(target))
+                        }
+                        target.contains(".") -> {
+                            openAppByPackage(context, target)
+                        }
+                        else -> {
+                            "'$target' ka exact package nahi pehchana—ya toh package naam do ya common app (whatsapp, youtube, chrome, camera, instagram, maps, clock, contacts, gallery, photos) bolo."
+                        }
                     }
                 }
             }
