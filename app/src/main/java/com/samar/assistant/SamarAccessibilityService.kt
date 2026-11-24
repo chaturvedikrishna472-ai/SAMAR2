@@ -3,6 +3,7 @@ package com.samar.assistant
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
+import android.os.Bundle
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
@@ -67,6 +68,29 @@ class SamarAccessibilityService : AccessibilityService() {
             }
         }
         return false
+    }
+
+    fun typeText(text: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val targetNode = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            ?: findFirstEditableNode(root)
+            ?: return false
+
+        targetNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        val args = Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+        }
+        return targetNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+    }
+
+    private fun findFirstEditableNode(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.isEditable) return node
+        for (i in 0 until node.childCount) {
+            val found = findFirstEditableNode(node.getChild(i))
+            if (found != null) return found
+        }
+        return null
     }
 
     fun performSystemBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
