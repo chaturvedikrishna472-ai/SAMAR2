@@ -49,7 +49,7 @@ object SamarCore {
     }
 
     fun getCommandsHelp(): String {
-        return "Commands: open <app/settings>, click <text>, find <text>, type <text>, search <text>, sms <number> : <msg>, read screen, scroll down/up, back, home, recents, status. 'and' ya 'then' se chain bhi kar sakte ho."
+        return "Commands: open <app/settings>, click <text>, find <text>, tap <x> <y>, type <text>, search <text>, sms <number> : <msg>, read screen, scroll down/up, back, home, recents, status. 'and' ya 'then' se chain bhi kar sakte ho."
     }
 
     fun openAccessibilitySettings(context: Context) {
@@ -265,6 +265,16 @@ object SamarCore {
             }
             command == "status" || command.contains("system check") -> {
                 getStatusSummary(context)
+            }
+            command.startsWith("tap ") -> {
+                val coords = command.removePrefix("tap ").trim().split(Regex("[,\\s]+"))
+                val x = coords.getOrNull(0)?.toFloatOrNull()
+                val y = coords.getOrNull(1)?.toFloatOrNull()
+                if (x != null && y != null) {
+                    tapScreen(x, y)
+                } else {
+                    "Format aisa rakho: tap <x> <y> (jaise: tap 540 1200)."
+                }
             }
             command.startsWith("sms ") || command.startsWith("send sms ") -> {
                 val payload = rawCommand.trim()
