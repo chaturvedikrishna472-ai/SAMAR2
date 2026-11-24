@@ -14,7 +14,7 @@ class SamarAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Screen events aane par live node tree rootInActiveWindow se read hota hai
+        // Live screen tree rootInActiveWindow se read/interact hota hai
     }
 
     override fun onInterrupt() {
@@ -50,6 +50,30 @@ class SamarAccessibilityService : AccessibilityService() {
             .build()
         return dispatchGesture(gesture, null, null)
     }
+
+    fun clickNodeByText(query: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val target = query.trim()
+        if (target.isEmpty()) return false
+
+        val matches = root.findAccessibilityNodeInfosByText(target)
+        for (node in matches) {
+            var current: AccessibilityNodeInfo? = node
+            while (current != null) {
+                if (current.isClickable) {
+                    return current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                }
+                current = current.parent
+            }
+        }
+        return false
+    }
+
+    fun performSystemBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
+
+    fun performSystemHome(): Boolean = performGlobalAction(GLOBAL_ACTION_HOME)
+
+    fun performSystemRecents(): Boolean = performGlobalAction(GLOBAL_ACTION_RECENTS)
 
     fun readScreenText(maxItems: Int = 25): String {
         val root = rootInActiveWindow ?: return "Active screen ka content nahi mil paaya."
