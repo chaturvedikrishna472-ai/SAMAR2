@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -41,16 +42,21 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+    private fun <T : View> findViewByName(name: String): T? {
+        val id = resources.getIdentifier(name, "id", packageName)
+        return if (id != 0) findViewById(id) else null
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        tvStatus = findViewById(R.id.tvStatus)
-        tvLog = findViewById(R.id.tvLog)
-        etCommand = findViewById(R.id.etCommand)
-        btnSend = findViewById(R.id.btnSend)
-        btnVoice = findViewById(R.id.btnVoice)
-        btnAccessibility = findViewById(R.id.btnAccessibility)
+        tvStatus = findViewByName("tvStatus")
+        tvLog = findViewByName("tvLog")
+        etCommand = findViewByName("etCommand")
+        btnSend = findViewByName("btnSend")
+        btnVoice = findViewByName("btnVoice")
+        btnAccessibility = findViewByName("btnAccessibility")
 
         tts = TextToSpeech(this, this)
 
