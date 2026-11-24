@@ -55,7 +55,7 @@ object SamarCore {
         val acc = if (isAccessibilityEnabled()) "ON" else "OFF"
         val mic = if (hasPermission(context, Manifest.permission.RECORD_AUDIO)) "OK" else "MISSING"
         val sms = if (hasPermission(context, Manifest.permission.SEND_SMS)) "OK" else "MISSING"
-        return "SAMAR status: Accessibility $acc, Mic $mic, SMS $sms. Main taiyar hoon, ab tu apna plan mat bigaadna."
+        return "SAMAR status: Accessibility $acc, Mic $mic, SMS$sms. Main taiyar hoon, ab tu apna plan mat bigaadna."
     }
 
     fun getCommandsHelp(): String {
@@ -85,7 +85,7 @@ object SamarCore {
         val service = SamarAccessibilityService.instance
             ?: return "Accessibility service off hai boss. Pehle settings mein on karo."
         val ok = service.performTap(x, y)
-        return if (ok) "($x, $y) par tap kar diya hai." else "Tap dispatch fail ho gaya."
+        return if (ok) "($x,$y) par tap kar diya hai." else "Tap dispatch fail ho gaya."
     }
 
     fun clickText(targetText: String): String {
@@ -228,148 +228,3 @@ object SamarCore {
                 } else {
                     val delayMs = index * 1100L
                     mainHandler.postDelayed(Runnable {
-                        val stepReply = handleSingleCommand(appContext, step, recordForRepeat = false)
-                        onAsyncStepResult?.invoke(stepReply)
-                    }, delayMs)
-                    results.add("Queued: '$step'")
-                }
-            }
-            return results.joinToString(" | ")
-        }
-
-        return handleSingleCommand(appContext, trimmed, recordForRepeat = true)
-    }
-
-    private fun handleSingleCommand(
-        context: Context,
-        rawCommand: String,
-        recordForRepeat: Boolean
-    ): String {
-        val command = rawCommand.trim().lowercase()
-        if (command.isEmpty()) return "Kuch sunai nahi diya bhai."
-
-        if (command == "repeat" || command == "phir se" || command == "dobara") {
-            val previous = lastRepeatableCommand
-                ?: return "Abhi tak koi pichla action command record nahi hua hai."
-            return handleSingleCommand(context, previous, recordForRepeat = false)
-        }
-
-        val isRepeatable = command.startsWith("open ") ||
-            command.startsWith("call ") ||
-            command.startsWith("dial ") ||
-            command.startsWith("tap ") ||
-            command.startsWith("click ") ||
-            command.startsWith("find ") ||
-            command.startsWith("type ") ||
-            command.startsWith("write ") ||
-            command.startsWith("search ") ||
-            command.contains("scroll down") ||
-            command.contains("scroll up") ||
-            command.contains("back")
-
-        if (recordForRepeat && isRepeatable) {
-            lastRepeatableCommand = rawCommand.trim()
-        }
-
-        return when {
-            command == "clear log" || command == "clear chat" || command == "reset log" || command == "clear" -> {
-                CLEAR_LOG_SIGNAL
-            }
-            command == "hello" || command == "hi" || command == "hey" || command.startsWith("namaste") -> {
-                "Haan boss, SAMAR hazir hai. Bol kya karna hai?"
-            }
-            command.contains("who are you") || command.contains("kaun hai tu") || command.contains("intro") -> {
-                "Main SAMAR hoon—JARVIS ki precision aur Deadpool ka thoda sa attitude."
-            }
-            command == "help" || command == "commands" -> getCommandsHelp()
-            command == "status" || command.contains("system check") -> getStatusSummary(context)
-            command.startsWith("call ") || command.startsWith("dial ") -> {
-                openDialer(context, rawCommand.trim().substringAfter(" ", "").trim())
-            }
-            command.startsWith("tap ") -> {
-                val coords = command.removePrefix("tap ").trim().split(Regex("[,\\s]+"))
-                val x = coords.getOrNull(0)?.toFloatOrNull()
-                val y = coords.getOrNull(1)?.toFloatOrNull()
-                if (x != null && y != null) tapScreen(x, y) else "Format: tap <x> <y>"
-            }
-            command.startsWith("sms ") || command.startsWith("send sms ") -> {
-                val payload = rawCommand.trim()
-                    .replaceFirst(Regex("(?i)^send\\s+sms\\s+|^sms\\s+"), "")
-                    .trim()
-                val sep = payload.indexOf(':')
-                if (sep > 0) {
-                    val number = payload.substring(0, sep).trim()
-                    val msg = payload.substring(sep + 1).trim()
-                    if (number.isNotEmpty() && msg.isNotEmpty()) sendSms(context, number, msg)
-                    else "Format: sms <number> : <message>"
-                } else {
-                    val parts = payload.split(Regex("\\s+"), limit = 2)
-                    if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
-                        sendSms(context, parts[0].trim(), parts[1].trim())
-                    } else {
-                        "Format: sms <number> : <message>"
-                    }
-                }
-            }
-            command.startsWith("search ") -> searchOnScreen(rawCommand.trim().substringAfter(" ", "").trim())
-            command.startsWith("type ") || command.startsWith("write ") -> {
-                typeIntoField(rawCommand.trim().substringAfter(" ", "").trim())
-            }
-            command.startsWith("find ") -> findOrClickText(rawCommand.trim().substringAfter(" ", "").trim())
-            command.startsWith("click ") -> clickText(rawCommand.trim().substringAfter(" ", "").trim())
-            command.contains("go back") || command == "back" || command.contains("peeche ja") -> goBack()
-            command.contains("go home") || command == "home" || command.contains("home screen") -> goHome()
-            command.contains("recent") || command.contains("recents") -> openRecents()
-            command.contains("scroll down") || command.contains("neeche scroll") -> scrollScreen(down = true)
-            command.contains("scroll up") || command.contains("upar scroll") -> scrollScreen(down = false)
-            command.contains("read screen") || command.contains("screen padh") -> readScreen()
-            command.contains("accessibility") -> {
-                openAccessibilitySettings(context)
-                "Accessibility settings khol di hain."
-            }
-            command.startsWith("open ") -> {
-                val target = command.removePrefix("open ").trim()
-                when (target) {
-                    "settings" -> {
-                        context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        "Phone settings khol di hain."
-                    }
-                    "wifi" -> {
-                        context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        "Wi-Fi settings khol di hain."
-                    }
-                    "bluetooth" -> {
-                        context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        "Bluetooth settings khol di hain."
-                    }
-                    "sound" -> {
-                        context.startActivity(Intent(Settings.ACTION_SOUND_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        "Sound settings khol di hain."
-                    }
-                    "battery" -> {
-                        context.startActivity(Intent(Settings.ACTION_POWER_USAGE_SUMMARY).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        "Battery settings khol di hain."
-                    }
-                    "display" -> {
-                        context.startActivity(Intent(Settings.ACTION_DISPLAY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        "Display settings khol di hain."
-                    }
-                    "location" -> {
-                        context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        "Location settings khol di hain."
-                    }
-                    "date" -> {
-                        context.startActivity(Intent(Settings.ACTION_DATE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        "Date settings khol di hain."
-                    }
-                    else -> when {
-                        commonAppPackages.containsKey(target) -> openAppByPackage(context, commonAppPackages.getValue(target))
-                        target.contains(".") -> openAppByPackage(context, target)
-                        else -> "'$target' ka package nahi mila."
-                    }
-                }
-            }
-            else -> "SAMAR sun raha hai—'$rawCommand' bola tune."
-        }
-    }
-}
