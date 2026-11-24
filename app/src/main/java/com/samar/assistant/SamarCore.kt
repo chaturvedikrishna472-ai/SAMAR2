@@ -55,7 +55,7 @@ object SamarCore {
         val acc = if (isAccessibilityEnabled()) "ON" else "OFF"
         val mic = if (hasPermission(context, Manifest.permission.RECORD_AUDIO)) "OK" else "MISSING"
         val sms = if (hasPermission(context, Manifest.permission.SEND_SMS)) "OK" else "MISSING"
-        return "SAMAR status: Accessibility $acc, Mic $mic, SMS$sms. Systems online—ab koi galat button mat dabwana."
+        return "SAMAR status: Accessibility $acc, Mic $mic, SMS $sms. Systems online—ab koi galat button mat dabwana."
     }
 
     fun getCommandsHelp(): String {
@@ -63,9 +63,10 @@ object SamarCore {
     }
 
     fun openAccessibilitySettings(context: Context) {
-        context.startActivity(
-            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
     }
 
     fun openDialer(context: Context, phoneNumber: String): String {
@@ -73,9 +74,10 @@ object SamarCore {
         if (clean.isEmpty()) {
             return "Kisko dial karna hai uska number toh batao, main telepath nahi hoon."
         }
-        context.startActivity(
-            Intent(Intent.ACTION_DIAL, Uri.parse("tel:$clean")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
+        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$clean")).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
         return "$clean ke liye dialer khol diya hai, sir."
     }
 
@@ -83,7 +85,7 @@ object SamarCore {
         val service = SamarAccessibilityService.instance
             ?: return "Accessibility service off hai boss. Pehle settings mein on karo."
         return if (service.performTap(x, y)) {
-            "($x,$y) par tap kar diya hai—clean shot."
+            "($x, $y) par tap kar diya hai—clean shot."
         } else {
             "Tap dispatch fail ho gaya."
         }
@@ -222,10 +224,13 @@ object SamarCore {
             context.startActivity(launchIntent)
             "$packageName khol diya hai, sir."
         } else {
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
+            val marketIntent = Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("market://details?id=$packageName")
+            ).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(marketIntent)
             "$packageName install nahi mila, Play Store khol diya hai."
         }
     }
@@ -316,3 +321,128 @@ object SamarCore {
             command == "help" || command == "commands" || command.contains("kya kar sakte") -> {
                 getCommandsHelp()
             }
+            command == "status" || command.contains("system check") -> {
+                getStatusSummary(context)
+            }
+            command.startsWith("call ") || command.startsWith("dial ") -> {
+                openDialer(context, rawCommand.trim().substringAfter(" ", "").trim())
+            }
+            command.startsWith("tap ") -> {
+                val coords = command.removePrefix("tap ").trim().split(Regex("[,\\s]+"))
+                val x = coords.getOrNull(0)?.toFloatOrNull()
+                val y = coords.getOrNull(1)?.toFloatOrNull()
+                if (x != null && y != null) tapScreen(x, y) else "Format: tap <x> <y>"
+            }
+            command.startsWith("sms ") || command.startsWith("send sms ") -> {
+                val payload = rawCommand.trim()
+                    .replaceFirst(Regex("(?i)^send\\s+sms\\s+|^sms\\s+"), "")
+                    .trim()
+                val sep = payload.indexOf(':')
+                if (sep > 0) {
+                    val num = payload.substring(0, sep).trim()
+                    val msg = payload.substring(sep + 1).trim()
+                    if (num.isNotEmpty() && msg.isNotEmpty()) sendSms(context, num, msg)
+                    else "Format: sms <number> : <message>"
+                } else {
+                    val parts = payload.split(Regex("\\s+"), limit = 2)
+                    if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                        sendSms(context, parts[0].trim(), parts[1].trim())
+                    } else {
+                        "Format: sms <number> : <message>"
+                    }
+                }
+            }
+            command.startsWith("search ") -> {
+                searchOnScreen(rawCommand.trim().substringAfter(" ", "").trim())
+            }
+            command.startsWith("type ") || command.startsWith("write ") -> {
+                typeIntoField(rawCommand.trim().substringAfter(" ", "").trim())
+            }
+            command.startsWith("find ") -> {
+                findOrClickText(rawCommand.trim().substringAfter(" ", "").trim())
+            }
+            command.startsWith("click ") -> {
+                clickText(rawCommand.trim().substringAfter(" ", "").trim())
+            }
+            command.contains("go back") || command == "back" || command.contains("peeche ja") || command.contains("waapis") -> {
+                goBack()
+            }
+            command.contains("go home") || command == "home" || command.contains("home screen") || command.contains("ghar chal") -> {
+                goHome()
+            }
+            command.contains("recent") || command.contains("recents") -> {
+                openRecents()
+            }
+            command.contains("scroll down") || command.contains("neeche scroll") -> {
+                scrollScreen(down = true)
+            }
+            command.contains("scroll up") || command.contains("upar scroll") -> {
+                scrollScreen(down = false)
+            }
+            command.contains("read screen") || command.contains("screen padh") -> {
+                readScreen()
+            }
+            command.contains("accessibility") -> {
+                openAccessibilitySettings(context)
+                "Accessibility settings khol di hain, ab SAMAR ko full power do."
+            }
+            command.startsWith("open ") -> {
+                val target = command.removePrefix("open ").trim()
+                when (target) {
+                    "settings" -> {
+                        val intent = Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        "Phone settings khol di hain."
+                    }
+                    "wifi" -> {
+                        val intent = Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        "Wi-Fi settings khol di hain."
+                    }
+                    "bluetooth" -> {
+                        val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        "Bluetooth settings khol di hain."
+                    }
+                    "sound" -> {
+                        val intent = Intent(Settings.ACTION_SOUND_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        "Sound settings khol di hain."
+                    }
+                    "battery" -> {
+                        val intent = Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        "Battery settings khol di hain."
+                    }
+                    "display" -> {
+                        val intent = Intent(Settings.ACTION_DISPLAY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        "Display settings khol di hain."
+                    }
+                    "location" -> {
+                        val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        "Location settings khol di hain."
+                    }
+                    "date" -> {
+                        val intent = Intent(Settings.ACTION_DATE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        "Date settings khol di hain."
+                    }
+                    else -> {
+                        if (commonAppPackages.containsKey(target)) {
+                            openAppByPackage(context, commonAppPackages.getValue(target))
+                        } else if (target.contains(".")) {
+                            openAppByPackage(context, target)
+                        } else {
+                            "'$target' ka package nahi mila—package naam ya common app (whatsapp, youtube, chrome, camera, instagram, maps, clock, contacts, gallery, photos) bolo."
+                        }
+                    }
+                }
+            }
+            else -> {
+                "SAMAR sun raha hai—'$rawCommand' bola tune. 'help' bol kar commands dekh lo."
+            }
+        }
+    }
+}
