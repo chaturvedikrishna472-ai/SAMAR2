@@ -15,13 +15,14 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
-    private lateinit var tvStatus: TextView
-    private lateinit var tvLog: TextView
-    private lateinit var etCommand: EditText
-    private lateinit var btnSend: Button
-    private lateinit var btnVoice: Button
-    private lateinit var btnAccessibility: Button
+    private var tvStatus: TextView? = null
+    private var tvLog: TextView? = null
+    private var etCommand: EditText? = null
+    private var btnSend: Button? = null
+    private var btnVoice: Button? = null
+    private var btnAccessibility: Button? = null
 
+    private val logBuffer = StringBuilder()
     private var tts: TextToSpeech? = null
     private var isTtsReady: Boolean = false
 
@@ -59,20 +60,20 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             101
         )
 
-        btnSend.setOnClickListener {
-            val text = etCommand.text?.toString()?.trim().orEmpty()
+        btnSend?.setOnClickListener {
+            val text = etCommand?.text?.toString()?.trim().orEmpty()
             if (text.isNotEmpty()) {
-                etCommand.setText("")
+                etCommand?.setText("")
                 appendLogAndSpeak("You", text, speakText = false)
                 dispatchUserCommand(text)
             }
         }
 
-        btnVoice.setOnClickListener {
+        btnVoice?.setOnClickListener {
             launchVoiceInput()
         }
 
-        btnAccessibility.setOnClickListener {
+        btnAccessibility?.setOnClickListener {
             SamarCore.openAccessibilitySettings(this)
         }
 
@@ -98,7 +99,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun refreshStatusBanner() {
         val accState = if (SamarCore.isAccessibilityEnabled()) "ON" else "OFF"
-        tvStatus.text = "SAMAR Core Ready | Accessibility: $accState"
+        tvStatus?.text = "SAMAR Core Ready | Accessibility: $accState"
     }
 
     private fun launchVoiceInput() {
@@ -133,13 +134,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun appendLog(speaker: String, message: String) {
-        val current = tvLog.text?.toString().orEmpty()
-        val updated = if (current.isEmpty()) {
-            "$speaker: $message"
-        } else {
-            "$current\n\n$speaker: $message"
+        if (logBuffer.isNotEmpty()) {
+            logBuffer.append("\n\n")
         }
-        tvLog.text = updated
+        logBuffer.append("$speaker: $message")
+        tvLog?.text = logBuffer.toString()
     }
 
     private fun appendLogAndSpeak(speaker: String, message: String, speakText: Boolean = true) {
