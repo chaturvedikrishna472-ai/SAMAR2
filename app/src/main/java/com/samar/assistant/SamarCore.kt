@@ -37,6 +37,17 @@ object SamarCore {
         return SamarAccessibilityService.isRunning()
     }
 
+    fun getStatusSummary(context: Context): String {
+        val acc = if (isAccessibilityEnabled()) "ON" else "OFF"
+        val mic = if (hasPermission(context, Manifest.permission.RECORD_AUDIO)) "OK" else "MISSING"
+        val sms = if (hasPermission(context, Manifest.permission.SEND_SMS)) "OK" else "MISSING"
+        return "SAMAR status: Accessibility $acc, Mic $mic, SMS $sms. Sab control mein hai, boss."
+    }
+
+    fun getCommandsHelp(): String {
+        return "Commands: open <app/settings>, click <text>, type <text>, search <text>, read screen, scroll down/up, back, home, recents, status."
+    }
+
     fun openAccessibilitySettings(context: Context) {
         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -81,6 +92,21 @@ object SamarCore {
             "'$cleanText' likh diya hai input box mein."
         } else {
             "Screen par koi editable text box nahi mila."
+        }
+    }
+
+    fun searchOnScreen(query: String): String {
+        val service = SamarAccessibilityService.instance
+            ?: return "Accessibility service off hai bhai, pehle on karo."
+        val cleanQuery = query.trim()
+        if (cleanQuery.isEmpty()) {
+            return "Kya search karna hai wo toh bolo."
+        }
+        service.clickNodeByText("Search")
+        return if (service.typeText(cleanQuery)) {
+            "'$cleanQuery' search field mein daal diya hai."
+        } else {
+            "Search box nahi mil paaya—pehle field tap karke 'type $cleanQuery' try karo."
         }
     }
 
@@ -171,11 +197,17 @@ object SamarCore {
         }
 
         return when {
-            command.startsWith("type ") -> {
-                val textToType = rawCommand.trim().substringAfter(" ", "").trim()
-                typeIntoField(textToType)
+            command == "help" || command == "commands" || command.contains("kya kar sakte") -> {
+                getCommandsHelp()
             }
-            command.startsWith("write ") -> {
+            command == "status" || command.contains("system check") -> {
+                getStatusSummary(context)
+            }
+            command.startsWith("search ") -> {
+                val query = rawCommand.trim().substringAfter(" ", "").trim()
+                searchOnScreen(query)
+            }
+            command.startsWith("type ") || command.startsWith("write ") -> {
                 val textToType = rawCommand.trim().substringAfter(" ", "").trim()
                 typeIntoField(textToType)
             }
@@ -226,7 +258,7 @@ object SamarCore {
                 }
             }
             else -> {
-                "SAMAR online aur sarcastic mode ready — command mila: '$rawCommand'"
+                "SAMAR sun raha hai—'$rawCommand' bola tune. 'help' bol kar commands dekh lo ya seedha action command do."
             }
         }
     }
