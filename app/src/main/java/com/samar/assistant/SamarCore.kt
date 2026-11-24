@@ -59,7 +59,7 @@ object SamarCore {
     }
 
     fun getCommandsHelp(): String {
-        return "Commands: open <app/settings/wifi/bluetooth/sound/battery/display/location>, call <number>, click <text>, find <text>, tap <x> <y>, type <text>, search <text>, sms <number> : <msg>, read screen, scroll down/up, back, home, recents, repeat, clear log, status. 'and' ya 'then' se chain bhi kar sakte ho."
+        return "Commands: open <app/settings/wifi/bluetooth/sound/battery/display/location/date>, call <number>, click <text>, find <text>, tap <x> <y>, type <text>, search <text>, sms <number> : <msg>, read screen, scroll down/up, back, home, recents, repeat, clear log, status. 'and' ya 'then' se chain bhi kar sakte ho."
     }
 
     fun openAccessibilitySettings(context: Context) {
@@ -118,11 +118,16 @@ object SamarCore {
             return "'$cleanTarget' mil gaya aur click kar diya hai."
         }
         val screenContent = service.readScreenText(40)
-        return if (screenContent.contains(cleanTarget, ignoreCase = true)) {
-            "'$cleanTarget' screen par dikh raha hai, par direct clickable node nahi mila."
-        } else {
-            "'$cleanTarget' abhi is screen par nahi mila—'scroll down' try karo."
+        if (screenContent.contains(cleanTarget, ignoreCase = true)) {
+            return "'$cleanTarget' screen par dikh raha hai, par direct clickable node nahi mila."
         }
+        if (service.performScroll(true)) {
+            mainHandler.postDelayed(Runnable {
+                service.clickNodeByText(cleanTarget)
+            }, 600L)
+            return "'$cleanTarget' turant nahi mila, neeche scroll karke dhoondh raha hoon."
+        }
+        return "'$cleanTarget' abhi is screen par nahi mila."
     }
 
     fun typeIntoField(text: String): String {
@@ -441,6 +446,12 @@ object SamarCore {
                         )
                         "Location settings khol di hain."
                     }
+                    "date" -> {
+                        context.startActivity(
+                            Intent(Settings.ACTION_DATE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                        "Date aur time settings khol di hain."
+                    }
                     else -> when {
                         commonAppPackages.containsKey(target) -> {
                             openAppByPackage(context, commonAppPackages.getValue(target))
@@ -449,14 +460,4 @@ object SamarCore {
                             openAppByPackage(context, target)
                         }
                         else -> {
-                            "'$target' ka exact package nahi pehchana—ya toh package naam do ya common app (whatsapp, youtube, chrome, camera, instagram, maps, clock, contacts, gallery, photos) bolo."
-                        }
-                    }
-                }
-            }
-            else -> {
-                "SAMAR sun raha hai—'$rawCommand' bola tune. 'help' bol kar commands dekh lo ya seedha action command do."
-            }
-        }
-    }
-}
+                            "'$target' ka exact package na
