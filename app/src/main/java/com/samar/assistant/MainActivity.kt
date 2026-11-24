@@ -1,5 +1,7 @@
 package com.samar.assistant
 
+import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
@@ -9,34 +11,32 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import java.util.Locale
 
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private lateinit var tvStatus: TextView
+    private lateinit var tvLog: TextView
     private lateinit var etCommand: EditText
+    private lateinit var btnSend: Button
+    private lateinit var btnVoice: Button
+    private lateinit var btnAccessibility: Button
+
     private var tts: TextToSpeech? = null
-    private var isTtsReady = false
+    private var isTtsReady: Boolean = false
 
-    private val requestPermissionsLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
-        val grantedCount = results.values.count { it }
-        updateStatus("Permissions updated ($grantedCount/${results.size} granted).")
-    }
-
-    private val voiceInputLauncher = registerForActivityResult(
+    private val voiceLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val spokenText = result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
-                .orEmpty()
-            if (spokenText.isNotBlank()) {
-                etCommand.setText(spokenText)
-                val reply = SamarCore.handleCommand(this, spokenText)
-                updateStatus(reply)
+        if (result.resultCode == Activity.RESULT_OK) {
+            val matches = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            val spoken = matches?.firstOrNull()?.trim().orEmpty()
+            if (spoken.isNotEmpty()) {
+                appendLogAndSpeak("You", spoken, speakText = false)
+                dispatchUserCommand(spoken)
+            } else {
+                appendLogAndSpeak("SAMAR", "Aawaz clear nahi aayi bhai, phir se try karo.")
             }
         }
     }
@@ -45,79 +45,120 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        tvStatus = findViewById(R.id.tvStatus)
+        tvLog = findViewById(R.id.tvLog)
+        etCommand = findViewById(R.id.etCommand)
+        btnSend = findViewById(R.id.btnSend)
+        btnVoice = findViewById(R.id.btnVoice)
+        btnAccessibility = findViewById(R.id.btnAccessibility)
+
         tts = TextToSpeech(this, this)
 
-        tvStatus = findViewById(R.id.tvStatus)
-        etCommand = findViewById(R.id.etCommand)
+        ActivityCompat.requestPermissions(
+            this,
+            SamarCore.requiredRuntimePermissions.toTypedArray(),
+            101
+        )
 
-        findViewById<Button>(R.id.btnPermissions).setOnClickListener {
-            requestPermissionsLauncher.launch(SamarCore.requiredRuntimePermissions.toTypedArray())
+        btnSend.setOnClickListener {
+            val text = etCommand.text?.toString()?.trim().orEmpty()
+            if (text.isNotEmpty()) {
+                etCommand.setText("")
+                appendLogAndSpeak("You", text, speakText = false)
+                dispatchUserCommand(text)
+            }
         }
 
-        findViewById<Button>(R.id.btnAccessibility).setOnClickListener {
+        btnVoice.setOnClickListener {
+            launchVoiceInput()
+        }
+
+        btnAccessibility.setOnClickListener {
             SamarCore.openAccessibilitySettings(this)
         }
 
-        findViewById<Button>(R.id.btnVoice).setOnClickListener {
-            startVoiceRecognition()
-        }
-
-        findViewById<Button>(R.id.btnSend).setOnClickListener {
-            val text = etCommand.text.toString()
-            val reply = SamarCore.handleCommand(this, text)
-            updateStatus(reply)
-        }
-
-        refreshStatus(speak = false)
-    }
-
-    override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) {
-            val langResult = tts?.setLanguage(Locale("hi", "IN"))
-            if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-                tts?.language = Locale.getDefault()
-            }
-            isTtsReady = true
-        }
+        refreshStatusBanner()
+        appendLog("SAMAR", "SAMAR initializing...")
     }
 
     override fun onResume() {
         super.onResume()
-        refreshStatus(speak = false)
+        refreshStatusBanner()
     }
 
-    override fun onDestroy() {
-        tts?.stop()
-        tts?.shutdown()
-        tts = null
-        super.onDestroy()
+    override fun onInit(status: Int) {
+        isTtsReady = status == TextToSpeech.SUCCESS
+        if (isTtsReady) {
+            val langResult = tts?.setLanguage(Locale("hi", "IN"))
+            if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+                tts?.language = Locale.US
+            }
+            speak("SAMAR online. Bol boss, aaj kiski shaamat aayi hai?")
+        }
     }
 
-    private fun startVoiceRecognition() {
+    private fun refreshStatusBanner() {
+        val accState = if (SamarCore.isAccessibilityEnabled()) "ON" else "OFF"
+        tvStatus.text = "SAMAR Core Ready | Accessibility: $accState"
+    }
+
+    private fun launchVoiceInput() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                 RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
             )
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Bolo SAMAR ko...")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "SAMAR sun raha hai...")
         }
         try {
-            voiceInputLauncher.launch(intent)
+            voiceLauncher.launch(intent)
         } catch (_: Exception) {
-            updateStatus("Voice recognizer available nahi hai, text command use karo.")
+            appendLogAndSpeak("SAMAR", "Device par voice recognizer available nahi hai.")
         }
     }
 
-    private fun refreshStatus(speak: Boolean) {
-        val accStatus = if (SamarCore.isAccessibilityEnabled()) "ON" else "OFF"
-        updateStatus("SAMAR ready | Accessibility: $accStatus", speak = speak)
+    private fun dispatchUserCommand(rawInput: String) {
+        val reply = SamarCore.handleCommand(
+            context = this,
+            rawCommand = rawInput,
+            onAsyncStepResult = { asyncReply ->
+                runOnUiThread {
+                    appendLogAndSpeak("SAMAR", asyncReply)
+                    refreshStatusBanner()
+                }
+            }
+        )
+        appendLogAndSpeak("SAMAR", reply)
+        refreshStatusBanner()
     }
 
-    private fun updateStatus(message: String, speak: Boolean = true) {
-        tvStatus.text = message
-        if (speak && isTtsReady && message.isNotBlank()) {
-            tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "samar_utterance")
+    private fun appendLog(speaker: String, message: String) {
+        val current = tvLog.text?.toString().orEmpty()
+        val updated = if (current.isEmpty()) {
+            "$speaker: $message"
+        } else {
+            "$current\n\n$speaker: $message"
         }
+        tvLog.text = updated
+    }
+
+    private fun appendLogAndSpeak(speaker: String, message: String, speakText: Boolean = true) {
+        appendLog(speaker, message)
+        if (speakText && speaker == "SAMAR") {
+            speak(message)
+        }
+    }
+
+    private fun speak(text: String) {
+        if (isTtsReady && text.isNotBlank()) {
+            tts?.speak(text, TextToSpeech.QUEUE_ADD, null, "samar_${System.nanoTime()}")
+        }
+    }
+
+    override fun onDestroy() {
+        tts?.stop()
+        tts?.shutdown()
+        super.onDestroy()
     }
 }
