@@ -17,6 +17,8 @@ object SamarCore {
 
     const val CLEAR_LOG_SIGNAL = "__SAMAR_CLEAR_LOG__"
 
+    private var lastRepeatableCommand: String? = null
+
     private val commonAppPackages: Map<String, String> = mapOf(
         "whatsapp" to "com.whatsapp",
         "youtube" to "com.google.android.youtube",
@@ -57,7 +59,7 @@ object SamarCore {
     }
 
     fun getCommandsHelp(): String {
-        return "Commands: open <app/settings/wifi/bluetooth/sound>, call <number>, click <text>, find <text>, tap <x> <y>, type <text>, search <text>, sms <number> : <msg>, read screen, scroll down/up, back, home, recents, clear log, status. 'and' ya 'then' se chain bhi kar sakte ho."
+        return "Commands: open <app/settings/wifi/bluetooth/sound/battery/display/location>, call <number>, click <text>, find <text>, tap <x> <y>, type <text>, search <text>, sms <number> : <msg>, read screen, scroll down/up, back, home, recents, repeat, clear log, status. 'and' ya 'then' se chain bhi kar sakte ho."
     }
 
     fun openAccessibilitySettings(context: Context) {
@@ -251,11 +253,11 @@ object SamarCore {
             val results = mutableListOf<String>()
             steps.forEachIndexed { index, step ->
                 if (index == 0) {
-                    results.add(handleSingleCommand(appContext, step))
+                    results.add(handleSingleCommand(appContext, step, recordForRepeat = true))
                 } else {
                     val delayMs = index * 1100L
                     mainHandler.postDelayed(Runnable {
-                        val stepReply = handleSingleCommand(appContext, step)
+                        val stepReply = handleSingleCommand(appContext, step, recordForRepeat = false)
                         onAsyncStepResult?.invoke(stepReply)
                     }, delayMs)
                     results.add("Queued: '$step'")
@@ -264,13 +266,44 @@ object SamarCore {
             return results.joinToString(" | ")
         }
 
-        return handleSingleCommand(appContext, trimmed)
+        return handleSingleCommand(appContext, trimmed, recordForRepeat = true)
     }
 
-    private fun handleSingleCommand(context: Context, rawCommand: String): String {
+    private fun handleSingleCommand(
+        context: Context,
+        rawCommand: String,
+        recordForRepeat: Boolean
+    ): String {
         val command = rawCommand.trim().lowercase()
         if (command.isEmpty()) {
             return "Kuch sunai nahi diya bhai, mic ke saamne thoda aur zor se bolo."
+        }
+
+        if (command == "repeat" || command == "phir se" || command == "dobara") {
+            val previous = lastRepeatableCommand
+                ?: return "Abhi tak koi pichla action command record nahi hua hai."
+            return handleSingleCommand(context, previous, recordForRepeat = false)
+        }
+
+        val isRepeatableAction = command.startsWith("open ") ||
+            command.startsWith("call ") ||
+            command.startsWith("dial ") ||
+            command.startsWith("tap ") ||
+            command.startsWith("click ") ||
+            command.startsWith("find ") ||
+            command.startsWith("type ") ||
+            command.startsWith("write ") ||
+            command.startsWith("search ") ||
+            command.contains("scroll down") ||
+            command.contains("neeche scroll") ||
+            command.contains("scroll up") ||
+            command.contains("upar scroll") ||
+            command.contains("go back") ||
+            command == "back" ||
+            command.contains("peeche ja")
+
+        if (recordForRepeat && isRepeatableAction) {
+            lastRepeatableCommand = rawCommand.trim()
         }
 
         return when {
@@ -389,6 +422,24 @@ object SamarCore {
                             Intent(Settings.ACTION_SOUND_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         )
                         "Sound settings khol di hain."
+                    }
+                    "battery" -> {
+                        context.startActivity(
+                            Intent(Intent.ACTION_POWER_USAGE_SUMMARY).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                        "Battery usage settings khol di hain."
+                    }
+                    "display" -> {
+                        context.startActivity(
+                            Intent(Settings.ACTION_DISPLAY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                        "Display settings khol di hain."
+                    }
+                    "location" -> {
+                        context.startActivity(
+                            Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                        "Location settings khol di hain."
                     }
                     else -> when {
                         commonAppPackages.containsKey(target) -> {
