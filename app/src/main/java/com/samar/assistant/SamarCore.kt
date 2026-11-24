@@ -11,6 +11,17 @@ import androidx.core.content.ContextCompat
 
 object SamarCore {
 
+    private val commonAppPackages: Map<String, String> = mapOf(
+        "whatsapp" to "com.whatsapp",
+        "youtube" to "com.google.android.youtube",
+        "chrome" to "com.android.chrome",
+        "play store" to "com.android.vending",
+        "phone" to "com.android.dialer",
+        "dialer" to "com.android.dialer",
+        "messages" to "com.google.android.apps.messaging",
+        "camera" to "com.android.camera"
+    )
+
     val requiredRuntimePermissions: List<String> = listOf(
         Manifest.permission.RECORD_AUDIO,
         Manifest.permission.SEND_SMS,
@@ -35,25 +46,25 @@ object SamarCore {
 
     fun tapScreen(x: Float, y: Float): String {
         val service = SamarAccessibilityService.instance
-            ?: return "SAMAR ki Accessibility Service off hai. Pehle settings mein on karo."
+            ?: return "Accessibility service off hai boss. Pehle settings mein on karo, warna main hawa mein tap karunga."
         val ok = service.performTap(x, y)
         return if (ok) {
-            "Tap dispatched at ($x, $y)."
+            "($x, $y) par tap kar diya hai, bilkul surgical precision ke saath."
         } else {
-            "Tap dispatch fail ho gaya."
+            "Tap dispatch fail ho gaya—screen shayad nakhre dikha rahi hai."
         }
     }
 
     fun clickText(targetText: String): String {
         val service = SamarAccessibilityService.instance
-            ?: return "Accessibility service off hai bhai, pehle on karo tabhi click kar paunga."
+            ?: return "Accessibility service off hai bhai, pehle on karo tabhi button daba paunga."
         val cleanTarget = targetText.trim()
         if (cleanTarget.isEmpty()) {
-            return "Kya click karna hai uska naam toh batao."
+            return "Kya click karna hai uska naam toh batao, main man ki baat nahi padh sakta abhi."
         }
         val ok = service.clickNodeByText(cleanTarget)
         return if (ok) {
-            "'$cleanTarget' par click kar diya hai."
+            "'$cleanTarget' par click kar diya hai. Aage kya tabahi machani hai?"
         } else {
             "Screen par '$cleanTarget' nahi mila ya clickable nahi hai."
         }
@@ -63,7 +74,7 @@ object SamarCore {
         val service = SamarAccessibilityService.instance
             ?: return "Accessibility service off hai bhai, pehle on karo."
         return if (service.performSystemBack()) {
-            "Back kar diya hai."
+            "Ek kadam peeche—just like a tactical retreat."
         } else {
             "Back action nahi ho paaya."
         }
@@ -73,7 +84,7 @@ object SamarCore {
         val service = SamarAccessibilityService.instance
             ?: return "Accessibility service off hai bhai, pehle on karo."
         return if (service.performSystemHome()) {
-            "Home screen par aa gaye."
+            "Home screen par wapas. Mission accomplished."
         } else {
             "Home action nahi ho paaya."
         }
@@ -83,7 +94,7 @@ object SamarCore {
         val service = SamarAccessibilityService.instance
             ?: return "Accessibility service off hai bhai, pehle on karo."
         return if (service.performSystemRecents()) {
-            "Recent apps khol di hain."
+            "Recent apps khol di hain—dekho kaun kaun line mein khada hai."
         } else {
             "Recent apps nahi khul paayin."
         }
@@ -109,7 +120,7 @@ object SamarCore {
 
     fun sendSms(context: Context, phoneNumber: String, message: String): String {
         if (!hasPermission(context, Manifest.permission.SEND_SMS)) {
-            return "SEND_SMS permission nahi mili."
+            return "SEND_SMS permission nahi mili—bina permission ke main SMS nahi bhej sakta."
         }
         return try {
             @Suppress("DEPRECATION")
@@ -126,7 +137,7 @@ object SamarCore {
         return if (launchIntent != null) {
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(launchIntent)
-            "Opening $packageName."
+            "$packageName khol diya hai, sir."
         } else {
             val marketIntent = Intent(
                 Intent.ACTION_VIEW,
@@ -135,14 +146,14 @@ object SamarCore {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(marketIntent)
-            "$packageName install nahi mila, store khol diya hai."
+            "$packageName install nahi mila, Play Store khol diya hai."
         }
     }
 
     fun handleCommand(context: Context, rawCommand: String): String {
         val command = rawCommand.trim().lowercase()
         if (command.isEmpty()) {
-            return "Kuch sunai nahi diya bhai, phir se bolo."
+            return "Kuch sunai nahi diya bhai, mic ke saamne thoda aur zor se bolo."
         }
 
         return when {
@@ -170,22 +181,25 @@ object SamarCore {
             }
             command.contains("accessibility") -> {
                 openAccessibilitySettings(context)
-                "Accessibility settings khol di hain, ab SAMAR ko power do."
+                "Accessibility settings khol di hain, ab SAMAR ko full power do."
             }
             command.startsWith("open ") -> {
                 val target = command.removePrefix("open ").trim()
-                when (target) {
-                    "settings" -> {
+                when {
+                    target == "settings" -> {
                         context.startActivity(
                             Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         )
-                        "Phone settings khol di hain."
+                        "Phone settings khol di hain—kuch bigaadna mat."
                     }
-                    "camera" -> {
-                        openAppByPackage(context, "com.android.camera")
+                    commonAppPackages.containsKey(target) -> {
+                        openAppByPackage(context, commonAppPackages.getValue(target))
+                    }
+                    target.contains(".") -> {
+                        openAppByPackage(context, target)
                     }
                     else -> {
-                        "Command samajh aa gayi: '$rawCommand'. Exact package ya action aage jodenge."
+                        "'$target' ka exact package nahi pehchana—ya toh package naam do ya common app (whatsapp, youtube, chrome, camera) bolo."
                     }
                 }
             }
