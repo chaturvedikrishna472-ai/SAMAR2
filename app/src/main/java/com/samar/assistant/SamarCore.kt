@@ -44,6 +44,51 @@ object SamarCore {
         }
     }
 
+    fun clickText(targetText: String): String {
+        val service = SamarAccessibilityService.instance
+            ?: return "Accessibility service off hai bhai, pehle on karo tabhi click kar paunga."
+        val cleanTarget = targetText.trim()
+        if (cleanTarget.isEmpty()) {
+            return "Kya click karna hai uska naam toh batao."
+        }
+        val ok = service.clickNodeByText(cleanTarget)
+        return if (ok) {
+            "'$cleanTarget' par click kar diya hai."
+        } else {
+            "Screen par '$cleanTarget' nahi mila ya clickable nahi hai."
+        }
+    }
+
+    fun goBack(): String {
+        val service = SamarAccessibilityService.instance
+            ?: return "Accessibility service off hai bhai, pehle on karo."
+        return if (service.performSystemBack()) {
+            "Back kar diya hai."
+        } else {
+            "Back action nahi ho paaya."
+        }
+    }
+
+    fun goHome(): String {
+        val service = SamarAccessibilityService.instance
+            ?: return "Accessibility service off hai bhai, pehle on karo."
+        return if (service.performSystemHome()) {
+            "Home screen par aa gaye."
+        } else {
+            "Home action nahi ho paaya."
+        }
+    }
+
+    fun openRecents(): String {
+        val service = SamarAccessibilityService.instance
+            ?: return "Accessibility service off hai bhai, pehle on karo."
+        return if (service.performSystemRecents()) {
+            "Recent apps khol di hain."
+        } else {
+            "Recent apps nahi khul paayin."
+        }
+    }
+
     fun scrollScreen(down: Boolean = true): String {
         val service = SamarAccessibilityService.instance
             ?: return "Accessibility service off hai bhai, pehle on karo tabhi scroll ho paayega."
@@ -101,6 +146,19 @@ object SamarCore {
         }
 
         return when {
+            command.startsWith("click ") -> {
+                val target = rawCommand.trim().substringAfter(" ", "").trim()
+                clickText(target)
+            }
+            command.contains("go back") || command == "back" || command.contains("peeche ja") -> {
+                goBack()
+            }
+            command.contains("go home") || command == "home" || command.contains("home screen") -> {
+                goHome()
+            }
+            command.contains("recent") || command.contains("recents") -> {
+                openRecents()
+            }
             command.contains("scroll down") || command.contains("neeche scroll") -> {
                 scrollScreen(down = true)
             }
