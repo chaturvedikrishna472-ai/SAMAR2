@@ -1,13 +1,9 @@
 package com.samar.assistant
 
-import android.accessibilityservice.AccessibilityService
-import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import android.speech.RecognizerIntent
-import android.text.TextUtils
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
@@ -46,18 +42,27 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    private val permissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            refreshHudStatus()
+            updateLog("SYS.LOG: Permissions updated")
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         bindHudViews()
         wireHudControls()
-        refreshAccessibilityState()
+        requestMissingPermissions()
+        refreshHudStatus()
+        hudResponseText.text =
+            "Systems wired, suit's sharp, no blue glow needed—now let's see if SAMAR actually runs the show or just roasts your typing."
     }
 
     override fun onResume() {
         super.onResume()
-        refreshAccessibilityState()
+        refreshHudStatus()
     }
 
     private fun bindHudViews() {
@@ -99,15 +104,11 @@ class MainActivity : AppCompatActivity() {
 
         btnAccessibility.setOnClickListener {
             updateLog("SYS.LOG: Opening Accessibility settings")
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            SamarCore.openAccessibilitySettings(this)
         }
 
         btnClearHud.setOnClickListener {
-            hudLastCommandText.text = "> AWAITING INPUT"
-            hudResponseText.text = "HUD wiped clean. Try not to make a mess this time."
-            hudLatencyText.text = "00ms"
-            hudCommandInput.setText("")
-            updateLog("SYS.LOG: Telemetry stream cleared")
+            resetHudStream("HUD wiped clean. Try not to make a mess this time.")
         }
     }
 
@@ -116,31 +117,41 @@ class MainActivity : AppCompatActivity() {
         hudLastCommandText.text = "> [$source] $command"
         hudCommandInput.setText("")
 
-        // TODO: Connect your SamarCore / SamarAccessibilityService execution method here
-        val reply = buildTacticalReply(command)
+        val reply = SamarCore.handleCommand(
+            context = this,
+            rawCommand = command,
+            onAsyncStepResult = { asyncReply ->
+                runOnUiThread {
+                    if (asyncReply == SamarCore.CLEAR_LOG_SIGNAL) {
+                        resetHudStream("HUD wiped clean. Try not to make a mess this time.")
+                    } else {
+                        hudResponseText.text = asyncReply
+                        refreshHudStatus()
+                        updateLog("SYS.LOG: Async step complete")
+                    }
+                }
+            }
+        )
+
         val elapsed = (System.currentTimeMillis() - startTime).coerceAtLeast(1L)
+        hudLatencyText.text = "${elapsed}ms"
+
+        if (reply == SamarCore.CLEAR_LOG_SIGNAL) {
+            resetHudStream("HUD wiped clean. Try not to make a mess this time.")
+            return
+        }
 
         hudResponseText.text = reply
-        hudLatencyText.text = "${elapsed}ms"
+        refreshHudStatus()
         updateLog("SYS.LOG: Executed via $source")
     }
 
-    private fun buildTacticalReply(command: String): String {
-        val lower = command.lowercase(Locale.getDefault())
-        val serviceActive = isAccessibilityEnabled(this, SamarAccessibilityService::class.java)
-
-        return when {
-            lower.contains("status") ->
-                "Core nominal. Accessibility link: ${if (serviceActive) "ACTIVE" else "OFFLINE"}. Still doing heavy lifting without a blue glow."
-            lower.contains("accessibility") ->
-                if (serviceActive) {
-                    "Accessibility service is already live. I can see what's on screen—behave accordingly."
-                } else {
-                    "Accessibility is off. Tap ACCESSIBILITY below unless you want me flying blind."
-                }
-            else ->
-                "Directive logged: \"$command\". Core is wired up—hook your backend handler inside SamarCore when ready."
-        }
+    private fun resetHudStream(message: String) {
+        hudLastCommandText.text = "> AWAITING INPUT"
+        hudResponseText.text = message
+        hudLatencyText.text = "00ms"
+        hudCommandInput.setText("")
+        updateLog("SYS.LOG: Telemetry stream cleared")
     }
 
     private fun launchVoiceInput() {
@@ -161,9 +172,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun refreshAccessibilityState() {
-        val active = isAccessibilityEnabled(this, SamarAccessibilityService::class.java)
-        hudSubStatusText.text = if (active) {
+    private fun requestMissingPermissions() {
+        val missing = SamarCore.requiredRuntimePermissions.filter { perm ->
+            !SamarCore.hasPermission(this, perm)
+        }
+        if (missing.isNotEmpty()) {
+            permissionLauncher.launch(missing.toTypedArray())
+        }
+    }
+
+    private fun refreshHudStatus() {
+        val accActive = SamarCore.isAccessibilityEnabled()
+        hudSubStatusText.text = if (accActive) {
             "CORE ONLINE  |  ACCESSIBILITY: ACTIVE"
         } else {
             "CORE ONLINE  |  ACCESSIBILITY: STANDBY"
@@ -172,25 +192,5 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateLog(entry: String) {
         hudActionLogText.text = entry
-    }
-
-    private fun isAccessibilityEnabled(
-        context: Context,
-        serviceClass: Class<out AccessibilityService>
-    ): Boolean {
-        val expectedComponent = ComponentName(context, serviceClass).flattenToString()
-        val enabledServices = Settings.Secure.getString(
-            context.contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-
-        val splitter = TextUtils.SimpleStringSplitter(':')
-        splitter.setString(enabledServices)
-        while (splitter.hasNext()) {
-            if (splitter.next().equals(expectedComponent, ignoreCase = true)) {
-                return true
-            }
-        }
-        return false
     }
 }
