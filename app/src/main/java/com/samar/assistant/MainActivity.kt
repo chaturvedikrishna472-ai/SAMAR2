@@ -53,7 +53,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         tvStatus = findViewByName("tvStatus")
         tvLog = findViewByName("tvLog")
-        etCommand = findViewByName("etCommand")
+        etCommand = findViewById("etCommand")
         btnSend = findViewByName("btnSend")
         btnVoice = findViewByName("btnVoice")
         btnAccessibility = findViewByName("btnAccessibility")
@@ -124,19 +124,28 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+    private fun consumeReply(reply: String) {
+        if (reply == SamarCore.CLEAR_LOG_SIGNAL) {
+            logBuffer.clear()
+            tvLog?.text = ""
+            appendLogAndSpeak("SAMAR", "Log saaf kar diya boss—ab naye kaand shuru karte hain.")
+        } else {
+            appendLogAndSpeak("SAMAR", reply)
+        }
+        refreshStatusBanner()
+    }
+
     private fun dispatchUserCommand(rawInput: String) {
         val reply = SamarCore.handleCommand(
             context = this,
             rawCommand = rawInput,
             onAsyncStepResult = { asyncReply ->
                 runOnUiThread {
-                    appendLogAndSpeak("SAMAR", asyncReply)
-                    refreshStatusBanner()
+                    consumeReply(asyncReply)
                 }
             }
         )
-        appendLogAndSpeak("SAMAR", reply)
-        refreshStatusBanner()
+        consumeReply(reply)
     }
 
     private fun appendLog(speaker: String, message: String) {
