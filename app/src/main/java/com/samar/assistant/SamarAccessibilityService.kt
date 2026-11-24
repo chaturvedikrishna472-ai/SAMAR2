@@ -9,73 +9,64 @@ import android.view.accessibility.AccessibilityNodeInfo
 
 class SamarAccessibilityService : AccessibilityService() {
 
+    companion object {
+        @Volatile
+        var instance: SamarAccessibilityService? = null
+            private set
+
+        fun isRunning(): Boolean = instance != null
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Live screen tree rootInActiveWindow se read/interact hota hai
+        // Event-driven updates can be wired here later if needed.
     }
 
     override fun onInterrupt() {
+        // Keep service instance alive; system will recover or rebind.
     }
 
     override fun onDestroy() {
-        if (instance === this) {
+        if (instance == this) {
             instance = null
         }
         super.onDestroy()
     }
 
+    override fun onUnbind(intent: android.content.Intent?): Boolean {
+        if (instance == this) {
+            instance = null
+        }
+        return super.onUnbind(intent)
+    }
+
     fun performTap(x: Float, y: Float): Boolean {
-        val path = Path().apply { moveTo(x, y) }
+        if (x < 0f || y < 0f) return false
+        val path = Path().apply {
+            moveTo(x, y)
+        }
         val gesture = GestureDescription.Builder()
             .addStroke(GestureDescription.StrokeDescription(path, 0L, 60L))
             .build()
         return dispatchGesture(gesture, null, null)
     }
 
-    fun performScroll(down: Boolean = true): Boolean {
-        val metrics = resources.displayMetrics
-        val centerX = metrics.widthPixels * 0.5f
-        val startY = if (down) metrics.heightPixels * 0.72f else metrics.heightPixels * 0.28f
-        val endY = if (down) metrics.heightPixels * 0.28f else metrics.heightPixels * 0.72f
-
-        val path = Path().apply {
-            moveTo(centerX, startY)
-            lineTo(centerX, endY)
-        }
-        val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0L, 250L))
-            .build()
-        return dispatchGesture(gesture, null, null)
-    }
-
-    fun clickNodeByText(query: String): Boolean {
+    fun clickNodeByText(targetText: String): Boolean {
+        val clean = targetText.trim()
+        if (clean.isEmpty()) return false
         val root = rootInActiveWindow ?: return false
-        val target = query.trim()
-        if (target.isEmpty()) return false
-
-        val matches = root.findAccessibilityNodeInfosByText(target)
-        for (node in matches) {
-            var current: AccessibilityNodeInfo? = node
-            while (current != null) {
-                if (current.isClickable) {
-                    return current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                }
-                current = current.parent
-            }
-        }
-        return false
+        val match = findMatchingNode(root, clean) ?: return false
+        val clickableNode = findClickableAncestor(match) ?: match
+        return clickableNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
     }
 
     fun typeText(text: String): Boolean {
         val root = rootInActiveWindow ?: return false
-        val targetNode = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-            ?: findFirstEditableNode(root)
-            ?: return false
-
+        val targetNode = findEditableNode(root) ?: return false
         targetNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
         val args = Bundle().apply {
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
@@ -83,14 +74,26 @@ class SamarAccessibilityService : AccessibilityService() {
         return targetNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
     }
 
-    private fun findFirstEditableNode(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-        if (node == null) return null
-        if (node.isEditable) return node
-        for (i in 0 until node.childCount) {
-            val found = findFirstEditableNode(node.getChild(i))
-            if (found != null) return found
+    fun performScroll(down: Boolean = true): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val scrollable = findScrollableNode(root) ?: return false
+        val action = if (down) {
+            AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+        } else {
+            AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
         }
-        return null
+        return scrollable.performAction(action)
+    }
+
+    fun readScreenText(maxItems: Int = 25): String {
+        val root = rootInActiveWindow ?: return "Screen ka data abhi read nahi ho paaya."
+        val items = mutableListOf<String>()
+        collectNodeTexts(root, items, maxItems.coerceAtLeast(1))
+        return if (items.isEmpty()) {
+            "Screen par koi clear text nahi mila."
+        } else {
+            items.joinToString(" | ")
+        }
     }
 
     fun performSystemBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
@@ -99,40 +102,75 @@ class SamarAccessibilityService : AccessibilityService() {
 
     fun performSystemRecents(): Boolean = performGlobalAction(GLOBAL_ACTION_RECENTS)
 
-    fun readScreenText(maxItems: Int = 25): String {
-        val root = rootInActiveWindow ?: return "Active screen ka content nahi mil paaya."
-        val collected = LinkedHashSet<String>()
-        collectNodeText(root, collected, maxItems)
-        return if (collected.isEmpty()) {
-            "Screen par koi readable text nahi mila."
-        } else {
-            collected.joinToString(". ")
+    private fun findMatchingNode(node: AccessibilityNodeInfo, query: String): AccessibilityNodeInfo? {
+        val nodeText = node.text?.toString()?.trim()
+        val nodeDesc = node.contentDescription?.toString()?.trim()
+        if (
+            (!nodeText.isNullOrEmpty() && nodeText.equals(query, ignoreCase = true)) ||
+            (!nodeDesc.isNullOrEmpty() && nodeDesc.equals(query, ignoreCase = true))
+        ) {
+            return node
         }
+        if (
+            (!nodeText.isNullOrEmpty() && nodeText.contains(query, ignoreCase = true)) ||
+            (!nodeDesc.isNullOrEmpty() && nodeDesc.contains(query, ignoreCase = true))
+        ) {
+            return node
+        }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val found = findMatchingNode(child, query)
+            if (found != null) return found
+        }
+        return null
     }
 
-    private fun collectNodeText(
-        node: AccessibilityNodeInfo?,
-        out: LinkedHashSet<String>,
+    private fun findClickableAncestor(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        var current = node
+        while (current != null) {
+            if (current.isClickable) return current
+            current = current.parent
+        }
+        return null
+    }
+
+    private fun findEditableNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (node.isEditable && node.isFocused) return node
+        if (node.isEditable) return node
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val found = findEditableNode(child)
+            if (found != null) return found
+        }
+        return null
+    }
+
+    private fun findScrollableNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (node.isScrollable) return node
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val found = findScrollableNode(child)
+            if (found != null) return found
+        }
+        return null
+    }
+
+    private fun collectNodeTexts(
+        node: AccessibilityNodeInfo,
+        out: MutableList<String>,
         limit: Int
     ) {
-        if (node == null || out.size >= limit) return
-        val text = node.text?.toString()?.trim()
-        val desc = node.contentDescription?.toString()?.trim()
-        if (!text.isNullOrEmpty() && text != "SAMAR initializing...") {
-            out.add(text)
-        } else if (!desc.isNullOrEmpty()) {
-            out.add(desc)
+        if (out.size >= limit) return
+        val label = (node.text?.toString()?.trim()).takeUnless { it.isNullOrEmpty() }
+            ?: (node.contentDescription?.toString()?.trim()).takeUnless { it.isNullOrEmpty() }
+        if (label != null && !out.contains(label)) {
+            out.add(label)
         }
         for (i in 0 until node.childCount) {
             if (out.size >= limit) break
-            collectNodeText(node.getChild(i), out, limit)
+            val child = node.getChild(i) ?: continue
+            collectNodeTexts(child, out, limit)
         }
-    }
-
-    companion object {
-        @Volatile
-        var instance: SamarAccessibilityService? = null
-
-        fun isRunning(): Boolean = instance != null
     }
 }
